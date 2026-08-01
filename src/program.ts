@@ -18,12 +18,45 @@ import { PROGRAM_ID } from "./constants.js";
  * from the real struct the first time a field is added to the Rust program.
  */
 const IDL_PATH = process.env.TRUST_EXPRESS_IDL_PATH ?? "./idl/trust_express.json";
-const RPC_URL = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
+
+// This used to default to devnet ("https://api.devnet.solana.com") if
+// SOLANA_RPC_URL wasn't set. That silent default is what let the mint
+// mismatch bug happen invisibly -- the server was reading devnet accounts
+// while SUPPORTED_MINTS held mainnet addresses, and nothing errored to flag
+// the mismatch. Which network this server talks to changes what "the best
+// rate" or "supported tokens" even means, so it must be set explicitly.
+function requireRpcUrl(): string {
+  const url = process.env.SOLANA_RPC_URL;
+  if (!url) {
+    throw new Error(
+      "SOLANA_RPC_URL is not set. This server previously defaulted to devnet " +
+        "silently, which caused real bugs (on-chain data from one network, " +
+        "config assumptions from another). Set SOLANA_RPC_URL explicitly to " +
+        "whichever network this deployment should read from."
+    );
+  }
+  return url;
+}
+const RPC_URL = requireRpcUrl();
 
 let cachedProgram: Program | null = null;
+let cachedIdl: Idl | null = null;
 
 export function getConnection(): Connection {
   return new Connection(RPC_URL, "confirmed");
+}
+
+/** Exposed so helpers.ts can decode on-chain enums (EscrowType, ReservationStatus)
+ * straight from the IDL's own type definitions instead of a hardcoded guess. */
+export function getIdl(): Idl {
+  if (!cachedIdl) {
+    // getProgram() populates this as a side effect; call it first if this
+    // throws "IDL not loaded yet".
+    if (!cachedProgram) {
+      throw new Error("getIdl() called before getProgram(). Call getProgram() first.");
+    }
+  }
+  return cachedIdl as Idl;
 }
 
 /**
@@ -42,6 +75,7 @@ export function getProgram(): Program {
   }
 
   const idl: Idl = JSON.parse(fs.readFileSync(IDL_PATH, "utf-8"));
+  cachedIdl = idl;
 
   // Anchor 0.30+ reads the program ID from idl.address, not a constructor
   // arg. Guard against an IDL exported by an older anchor-cli that doesn't

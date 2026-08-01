@@ -6,15 +6,10 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 
-import { getMarketRates, listOpenOrders } from "./tools/marketData.js";
+import { getMarketRates, listOpenOrders, listKnownTokens } from "./tools/marketData.js";
 import { getOrderStatus } from "./tools/orderStatus.js";
-import { getPlatformStats } from "./tools/platformStats.js";
-import {
-  getProtocolOverview,
-  getSupportedTokens,
-  getFeeStructure,
-  getCurrenciesAndProcessors,
-} from "./tools/staticInfo.js";
+import { getPlatformStats, getFeeStructure } from "./tools/platformStats.js";
+import { getProtocolOverview, getCurrenciesAndProcessors } from "./tools/staticInfo.js";
 import { SUPPORTED_CURRENCIES } from "./constants.js";
 
 function textResult(data: unknown) {
@@ -41,13 +36,16 @@ function buildServer(): McpServer {
   );
 
   server.registerTool(
-    "get_supported_tokens",
+    "list_known_tokens",
     {
-      title: "Supported tokens",
-      description: "Lists tokens Trust Vault supports (symbol, mint address, decimals).",
+      title: "Tokens currently traded on Trust Vault",
+      description:
+        "Lists tokens (mint address + decimals) that currently have at least one open order " +
+        "on Trust Vault. Derived live from on-chain orders, not a fixed list -- a token only " +
+        "shows up here if it's actually being traded right now.",
       inputSchema: {},
     },
-    async () => textResult(getSupportedTokens())
+    async () => textResult(await listKnownTokens())
   );
 
   server.registerTool(
@@ -55,10 +53,11 @@ function buildServer(): McpServer {
     {
       title: "Best available market rate",
       description:
-        "Returns the best available BUY-order rate for a token/currency pair — i.e. the best " +
-        "rate a seller would get right now. Optionally filter by token symbol and/or currency.",
+        "Returns the best available BUY-order rate for a token/currency pair -- i.e. the best " +
+        "rate a seller would get right now. Optionally filter by mint address and/or currency. " +
+        "Use list_known_tokens or list_open_orders first to find a valid mint address.",
       inputSchema: {
-        token: z.string().optional().describe('Token symbol, e.g. "USDC"'),
+        token: z.string().optional().describe("Full mint address, e.g. from list_known_tokens"),
         currency: z.enum(SUPPORTED_CURRENCIES).optional(),
       },
     },
@@ -71,11 +70,11 @@ function buildServer(): McpServer {
       title: "List open orders",
       description:
         "Lists currently open buy and/or sell orders on Trust Vault, optionally filtered by " +
-        "order type, currency, or token.",
+        "order type, currency, or mint address.",
       inputSchema: {
         orderType: z.enum(["buy", "sell"]).optional(),
         currency: z.enum(SUPPORTED_CURRENCIES).optional(),
-        token: z.string().optional(),
+        token: z.string().optional().describe("Full mint address"),
       },
     },
     async (args) => textResult(await listOpenOrders(args))
@@ -112,10 +111,11 @@ function buildServer(): McpServer {
     "get_fee_structure",
     {
       title: "Fee structure",
-      description: "Returns Trust Vault's protocol fee and how it's split between LPs, platform, and validators.",
+      description:
+        "Returns Trust Vault's live protocol fee, read directly from the on-chain GlobalState account.",
       inputSchema: {},
     },
-    async () => textResult(getFeeStructure())
+    async () => textResult(await getFeeStructure())
   );
 
   server.registerTool(
@@ -136,7 +136,7 @@ function buildServer(): McpServer {
 const app = express();
 
 // Claude.ai (and other MCP clients) connect to this server directly from the
-// browser, so the response needs CORS headers — in particular the session id
+// browser, so the response needs CORS headers -- in particular the session id
 // header, which the client reads to keep making calls on the same session.
 app.use(
   cors({
@@ -181,13 +181,10 @@ app.post("/mcp", mcpRateLimiter, async (req, res) => {
       },
     });
     // Clean up when the SESSION actually ends (client sends DELETE, or the
-    // transport itself tears down) — not when a single request's stream
+    // transport itself tears down) -- not when a single request's stream
     // closes. In HTTP/2 (which Railway uses), each POST is its own stream
     // and closes as soon as that response finishes sending, which is not
-    // the same as the client being done with the session. Using res.on
-    // ("close") here was deleting the session immediately after the very
-    // first response (initialize), before the client could ever call
-    // tools/list.
+    // the same as the client being done with the session.
     transport.onclose = () => {
       if (transport?.sessionId) transports.delete(transport.sessionId);
     };
@@ -208,8 +205,7 @@ app.get("/mcp", mcpRateLimiter, async (req, res) => {
 });
 
 // Streamable HTTP clients may DELETE the session explicitly when they're
-// done, so they don't leak in the in-memory transports map before the
-// `res.on("close", ...)` cleanup in the POST handler would otherwise catch it.
+// done, so they don't leak in the in-memory transports map.
 app.delete("/mcp", mcpRateLimiter, async (req, res) => {
   const sessionId = req.headers["mcp-session-id"] as string | undefined;
   const transport = sessionId ? transports.get(sessionId) : undefined;
