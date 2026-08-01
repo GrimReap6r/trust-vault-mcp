@@ -1,5 +1,5 @@
 import { fetchAllOrders } from "./fetchOrders.js";
-import { normalizeMintFilter, getDecimalsForMint } from "./tokenregistry.js";
+import { normalizeMintFilter, getDecimalsForMint } from "./tokenRegistry.js";
 
 /**
  * Replaces the old get_supported_tokens, which returned a hardcoded

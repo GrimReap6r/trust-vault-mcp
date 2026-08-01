@@ -1,17 +1,35 @@
 import { fetchAllOrders } from "./fetchOrders.js";
-import { SUPPORTED_MINTS } from "../constants.js";
-function mintForSymbol(symbol) {
-    return SUPPORTED_MINTS.find((m) => m.symbol.toUpperCase() === symbol.toUpperCase())?.mint;
+import { normalizeMintFilter, getDecimalsForMint } from "./tokenRegistry.js";
+/**
+ * Replaces the old get_supported_tokens, which returned a hardcoded
+ * SUPPORTED_MINTS table (mainnet USDC/USDT addresses) regardless of what
+ * was actually tradeable on whatever network the server was pointed at.
+ * This derives the answer from live orders instead: whichever mints
+ * currently have an open order ARE, by definition, the tokens actually
+ * being traded on this deployment right now.
+ */
+export async function listKnownTokens() {
+    const orders = await fetchAllOrders();
+    const distinctMints = [...new Set(orders.map((o) => o.mint))];
+    return Promise.all(distinctMints.map(async (mint) => ({
+        mint,
+        decimals: await getDecimalsForMint(mint),
+    })));
 }
 /**
- * get_market_rates — best available BUY-order rate per token/currency.
+ * get_market_rates -- best available BUY-order rate per token/currency.
  * Mirrors merchant page "best LP" selection (trust-vault skill §15.2):
  * escrow_type=1 (BUY), currency match, amount > 0, reservations < 10,
  * highest price_per_token wins.
+ *
+ * `token` now expects a mint ADDRESS, not a symbol like "USDC" -- there's
+ * no hardcoded symbol table anymore (see tokenRegistry.ts). Use
+ * list_open_orders with no filter to see which mints currently have
+ * liquidity.
  */
 export async function getMarketRates(args) {
     const orders = await fetchAllOrders();
-    const mint = args.token ? mintForSymbol(args.token) : undefined;
+    const mint = normalizeMintFilter(args.token);
     const candidates = orders.filter((o) => {
         if (o.orderType !== "buy")
             return false;
@@ -31,18 +49,18 @@ export async function getMarketRates(args) {
     const best = candidates.reduce((a, b) => (b.pricePerToken > a.pricePerToken ? b : a));
     return {
         found: true,
-        token: SUPPORTED_MINTS.find((m) => m.mint === best.mint)?.symbol ?? best.mint,
+        tokenMint: best.mint,
         currency: best.currency,
         pricePerToken: best.pricePerToken,
         bestLpOrderAddress: best.orderAddressTruncated,
     };
 }
 /**
- * list_open_orders — filtered listing of open buy/sell orders.
+ * list_open_orders -- filtered listing of open buy/sell orders.
  */
 export async function listOpenOrders(args) {
     const orders = await fetchAllOrders();
-    const mint = args.token ? mintForSymbol(args.token) : undefined;
+    const mint = normalizeMintFilter(args.token);
     const filtered = orders.filter((o) => {
         if (args.orderType && o.orderType !== args.orderType)
             return false;
@@ -55,7 +73,7 @@ export async function listOpenOrders(args) {
     return filtered.map((o) => ({
         orderAddress: o.orderAddressTruncated,
         orderType: o.orderType,
-        token: SUPPORTED_MINTS.find((m) => m.mint === o.mint)?.symbol ?? o.mint,
+        tokenMint: o.mint,
         currency: o.currency,
         pricePerToken: o.pricePerToken,
         availableAmount: o.amount,

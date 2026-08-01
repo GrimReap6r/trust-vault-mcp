@@ -1,6 +1,6 @@
 import { getProgram, getIdl } from "../program.js";
 import { decodeCurrency, decodeEscrowType, toDisplayAmount, truncatePda } from "../helpers.js";
-import { getDecimalsForMint } from "./tokenregistry.js";
+import { getDecimalsForMint } from "./tokenRegistry.js";
 
 export interface DecodedOrder {
   orderAddress: string; // full PDA

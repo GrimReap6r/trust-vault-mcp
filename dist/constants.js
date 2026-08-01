@@ -1,19 +1,25 @@
 import { PublicKey } from "@solana/web3.js";
+// This is the deployed program's address — immutable and structural, not a
+// business/config value, so unlike the mint list below there is nothing to
+// "derive" it from. Kept as-is intentionally.
 // Source: trust-vault-program skill, §1 Program Identity
 export const PROGRAM_ID = new PublicKey("6Z8rRkDxtLWBEGgeccx8AWj9Um8osnLQihEA1xiECHWr");
 export const TRUST_EXPRESS_SEED = "trust-express";
-export const SUPPORTED_MINTS = [
-    {
-        symbol: "USDC",
-        mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-        decimals: 6,
-    },
-    {
-        symbol: "USDT",
-        mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
-        decimals: 6,
-    },
-];
+// NOTE: token identity (mint -> decimals) used to live here as a hardcoded
+// SUPPORTED_MINTS list. That's what caused the get_market_rates/list_open_orders
+// bug: the list held MAINNET USDC/USDT addresses while the server defaulted
+// to devnet, so real on-chain orders (using devnet mints) never matched.
+// Token identity is now derived live from on-chain data — see
+// src/tools/tokenRegistry.ts (getMint decimals lookup + cache) — instead of
+// being duplicated here where it can silently drift from whatever network
+// the server is actually pointed at.
+// SUPPORTED_CURRENCIES / SUPPORTED_PROCESSORS are intentionally still here.
+// Unlike the mint list, there's no on-chain source of truth for "which fiat
+// currencies / payment processors this product supports" — an order's
+// currency field is just 3 raw bytes the maker chose when creating it, and
+// processors like Flutterwave/Paystack are off-chain business integrations
+// with no on-chain representation at all. This is product config, not
+// something that can drift from chain state, so hardcoding it is correct.
 export const SUPPORTED_CURRENCIES = [
     "NGN",
     "GHS",
@@ -29,29 +35,19 @@ export const SUPPORTED_CURRENCIES = [
 // OPay intentionally excluded — bans crypto, must never appear in
 // public-facing / pitch materials (trust-vault skill, misconceptions §1).
 export const SUPPORTED_PROCESSORS = ["Flutterwave", "Paystack", "Korapay"];
-// CANONICAL fee split — corrected value per /areas/trust-vault.md.
-// NOTE: the trust-vault skill file still documents 40% platform / 40% LP / 20% validators.
-// That is STALE. Do not copy fee numbers from the skill file into this tool —
-// this constant is the one source this MCP server should trust. Fix the skill
-// file separately; until then this comment is load-bearing.
-export const FEE_STRUCTURE = {
-    totalFeeBasisPoints: 50, // 0.5% product fee (on-chain default differs — see below)
-    totalFeePercent: 0.5,
-    split: {
-        lp: 0.5, // 50%
-        platform: 0.3, // 30%
-        validators: 0.2, // 20%
-    },
-    // On-chain default differs from the intended product fee during development.
-    onChainDefaultBasisPoints: 5, // 0.05% — constants.rs FEE_BASIS_POINTS
-    maxBasisPoints: 1000, // 10% hard cap
-};
-// Reservation status codes — trust-vault-program skill §2.3
-export const RESERVATION_STATUS = [
-    "pending", // 0
-    "payment_sent", // 1
-    "completed", // 2
-    "cancelled", // 3
-    "disputed", // 4
-];
-export const ESCROW_TYPE = ["sell", "buy"]; // 0=SELL, 1=BUY
+// FEE_STRUCTURE (target product fee, on-chain default, fee split) has been
+// removed from here entirely. It used to hardcode both a "product target"
+// fee split AND note that the live on-chain value differs — meaning
+// get_fee_structure was always reporting a number that wasn't what the
+// program was actually charging. get_fee_structure now reads the live fee
+// directly from the GlobalState account. See src/tools/platformStats.ts.
+// RESERVATION_STATUS / ESCROW_TYPE (the arrays that decoded on-chain u8
+// codes to strings like "pending" / "buy") have also been removed. Decoding
+// an enum by hardcoded array position is exactly the same class of risk as
+// the mint list: if the Rust program ever reorders or adds a variant, this
+// silently mislabels order state (e.g. a "disputed" reservation could get
+// mislabeled "completed") with no error to catch it. These are now decoded
+// directly from the IDL's own type definitions at runtime — the same
+// source of truth the Anchor client already trusts — and the server throws
+// clearly if the IDL doesn't define them, instead of guessing.
+// See src/helpers.ts.

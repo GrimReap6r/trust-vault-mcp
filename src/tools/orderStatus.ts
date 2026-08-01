@@ -1,7 +1,7 @@
 import { PublicKey } from "@solana/web3.js";
 import { getProgram, getIdl } from "../program.js";
 import { decodeCurrency, decodeEscrowType, decodeReservationStatus, toDisplayAmount } from "../helpers.js";
-import { getDecimalsForMint } from "./tokenregistry.js";
+import { getDecimalsForMint } from "./tokenRegistry.js";
 
 /**
  * get_order_status -- one RPC call, full order state including embedded
