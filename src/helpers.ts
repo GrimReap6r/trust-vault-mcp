@@ -1,58 +1,53 @@
-import type { Idl } from "@coral-xyz/anchor";
-
 /** currency: [u8; 3] on-chain -> "NGN" */
 export function decodeCurrency(bytes: number[] | Uint8Array): string {
   return Buffer.from(bytes).toString("utf-8");
 }
 
 /**
- * ESCROW_TYPE / RESERVATION_STATUS used to be hardcoded arrays here
- * (["sell","buy"], ["pending","payment_sent",...]) that decoded an
- * on-chain u8 by array position. That's risky in the same way the old
- * SUPPORTED_MINTS table was: if the Rust program ever reorders or adds a
- * variant, this silently mislabels order state with nothing to catch it —
- * e.g. a "disputed" reservation could get reported as "completed".
+ * escrow_type is a plain `u8` on the TrustExpress account -- NOT an Anchor
+ * enum. Confirmed against state/express.rs:
  *
- * Instead, both enums are now read directly from the IDL's own `types`
- * definitions at runtime — the same source of truth the Anchor client
- * already trusts for account layout — and this throws clearly if the IDL
- * doesn't define the expected type, rather than falling back to a guess.
+ *   pub const EXPRESS_SELL: u8 = 0;
+ *   pub const EXPRESS_BUY: u8 = 1;
+ *
+ * Anchor never emits an IDL `enum` type for this because there isn't one in
+ * the Rust source to emit -- the previous getEnumVariants(idl, "EscrowType")
+ * approach was reading a type that can never exist for this field, which is
+ * why it threw on every single order. This mirrors the real constants
+ * instead of asking the IDL for something it doesn't have.
  */
-function getEnumVariants(idl: Idl, typeName: string): string[] {
-  const typeDef = (idl.types ?? []).find((t: any) => t.name === typeName);
-  if (!typeDef) {
-    throw new Error(
-      `IDL has no type named "${typeName}". Cannot safely decode this enum ` +
-        `without it -- refusing to guess. Check the type name matches your ` +
-        `Rust program's enum (it may be defined under a different name).`
-    );
-  }
-  const kind = (typeDef as any).type;
-  if (kind?.kind !== "enum" || !Array.isArray(kind.variants)) {
-    throw new Error(`IDL type "${typeName}" is not an enum -- cannot decode by variant index.`);
-  }
-  return kind.variants.map((v: any) => toSnakeCase(v.name));
-}
+const ESCROW_TYPE: Record<number, "sell" | "buy"> = { 0: "sell", 1: "buy" };
 
-function toSnakeCase(name: string): string {
-  return name.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
-}
-
-export function decodeEscrowType(idl: Idl, escrowType: number): "sell" | "buy" {
-  const variants = getEnumVariants(idl, "EscrowType");
-  const val = variants[escrowType];
-  if (val !== "sell" && val !== "buy") {
+export function decodeEscrowType(escrowType: number): "sell" | "buy" {
+  const val = ESCROW_TYPE[escrowType];
+  if (!val) {
     throw new Error(
-      `IDL EscrowType variant at index ${escrowType} is "${val}", expected "sell" or "buy". ` +
-        `The IDL's enum shape doesn't match what this decoder expects -- update decodeEscrowType.`
+      `Unexpected escrow_type value ${escrowType} -- expected 0 (sell) or 1 (buy) ` +
+        `per EXPRESS_SELL/EXPRESS_BUY in state/express.rs. If the program added a ` +
+        `new variant, update ESCROW_TYPE in helpers.ts to match.`
     );
   }
   return val;
 }
 
-export function decodeReservationStatus(idl: Idl, status: number): string {
-  const variants = getEnumVariants(idl, "ReservationStatus");
-  return variants[status] ?? `unknown_variant_index_${status}`;
+/**
+ * ReservedAmount.status is also a plain `u8` (see state/reservation.rs) --
+ * same shape as escrow_type, no Anchor enum, so nothing for the IDL to
+ * export. Unlike escrow_type, we don't yet have the Rust source that
+ * defines the numeric mapping (pending/payment_sent/completed/cancelled/
+ * disputed) -- that likely lives in an instruction handler (reserve.rs,
+ * confirm_payment.rs, dispute.rs, or similar) that hasn't been shared yet.
+ *
+ * Guessing that mapping is exactly the risk this codebase has been
+ * deliberately avoiding elsewhere (a "disputed" reservation silently
+ * reported as "completed" is worse than an ugly number). So for now this
+ * surfaces the raw numeric status, clearly labeled as unresolved, rather
+ * than blocking every order/order-status call on it the way the old
+ * IDL-lookup did. Once the real constants are confirmed, replace this with
+ * the same pattern as decodeEscrowType above.
+ */
+export function decodeReservationStatus(status: number): { code: number; label: string } {
+  return { code: status, label: `unmapped_status_${status}` };
 }
 
 export function toDisplayAmount(rawAmount: bigint | number, decimals: number): number {

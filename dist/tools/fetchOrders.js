@@ -1,4 +1,4 @@
-import { getProgram, getIdl } from "../program.js";
+import { getProgram } from "../program.js";
 import { decodeCurrency, decodeEscrowType, toDisplayAmount, truncatePda } from "../helpers.js";
 import { getDecimalsForMint } from "./tokenRegistry.js";
 /**
@@ -14,10 +14,15 @@ import { getDecimalsForMint } from "./tokenRegistry.js";
  * Token decimals are fetched live per-mint (see tokenRegistry.ts) rather
  * than looked up in a hardcoded table, so this works correctly regardless
  * of which network/deployment SOLANA_RPC_URL points at.
+ *
+ * escrow_type is decoded via the EXPRESS_SELL/EXPRESS_BUY constants in
+ * helpers.ts, NOT via the IDL -- confirmed against state/express.rs that
+ * this field is a plain u8, not an Anchor enum, so there's no IDL type to
+ * read. (This is why the IDL-lookup version of this file threw on every
+ * order -- it was asking the IDL for a type that can't exist here.)
  */
 export async function fetchAllOrders() {
     const program = getProgram();
-    const idl = getIdl();
     // Anchor account namespace name must match the IDL's account name for
     // TrustExpress -- adjust `.trustExpress` below if your IDL casing differs.
     const accounts = await program.account.trustExpress.all();
@@ -28,7 +33,7 @@ export async function fetchAllOrders() {
         return {
             orderAddress: entry.publicKey.toString(),
             orderAddressTruncated: truncatePda(entry.publicKey.toString()),
-            orderType: decodeEscrowType(idl, acc.escrowType),
+            orderType: decodeEscrowType(acc.escrowType),
             maker: acc.maker.toString(),
             mint,
             currency: decodeCurrency(acc.currency),
