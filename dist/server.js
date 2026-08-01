@@ -9,7 +9,6 @@ import { z } from "zod";
 // to come off the default export instead of a named import.
 import anchorPkg from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
-import "dotenv/config";
 import { getMarketRates, listOpenOrders, listKnownTokens } from "./tools/marketData.js";
 import { getOrderStatus } from "./tools/orderStatus.js";
 import { getPlatformStats, getFeeStructure } from "./tools/platformStats.js";
@@ -22,6 +21,35 @@ import { getProgram, getConnection } from "./program.js";
 const { BN } = anchorPkg;
 function textResult(data) {
     return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+}
+/**
+ * For tool results that include a QR code. Previously these shipped the QR
+ * as a `data:image/png;base64,...` string inside the JSON text blob --
+ * Claude.ai's client rendered that as a clickable "Show Image" link, but
+ * clicking it made the browser tab navigate directly to a data: URL, which
+ * Chrome blocks as a top-level navigation (has for a few years now, as an
+ * anti-phishing measure) -- hence the blank page, not corrupted image data.
+ *
+ * MCP's content array supports a real `image` block (base64 + mimeType)
+ * that MCP clients, including Claude.ai, render inline in the chat with no
+ * navigation involved. `qrCodeDataUri` is stripped out of the JSON text
+ * (replaced with a pointer) since it'd otherwise be duplicated in full --
+ * once as the unusable data: URI, once as the actual image block.
+ */
+function imageResult(data) {
+    const prefix = "base64,";
+    const idx = data.qrCodeDataUri.indexOf(prefix);
+    if (idx === -1) {
+        throw new Error(`qrCodeDataUri is not a base64 data URI: ${data.qrCodeDataUri.slice(0, 40)}...`);
+    }
+    const base64 = data.qrCodeDataUri.slice(idx + prefix.length);
+    const { qrCodeDataUri: _drop, ...rest } = data;
+    return {
+        content: [
+            { type: "text", text: JSON.stringify({ ...rest, qrCode: "(see attached image)" }, null, 2) },
+            { type: "image", data: base64, mimeType: "image/png" },
+        ],
+    };
 }
 function buildServer() {
     const server = new McpServer({
@@ -102,7 +130,7 @@ function buildServer() {
             paymentInstructions: z.string().max(100),
             credentialId: z.string().optional(),
         },
-    }, async (args) => textResult(await prepareBuyOrder(args)));
+    }, async (args) => imageResult(await prepareBuyOrder(args)));
     server.registerTool("generate_merchant_qr", {
         title: "Generate a merchant scan-to-pay QR",
         description: "Finds the best available open BUY order for a fiat amount/currency and returns a " +
@@ -119,7 +147,12 @@ function buildServer() {
                 beneficiaryName: z.string(),
             }),
         },
-    }, async (args) => textResult(await generateMerchantQr(args)));
+    }, async (args) => {
+        const result = await generateMerchantQr(args);
+        // No matching liquidity -- result has no qrCodeDataUri to attach, so
+        // this stays plain text rather than going through imageResult.
+        return "qrCodeDataUri" in result ? imageResult(result) : textResult(result);
+    });
     return server;
 }
 // --- Streamable HTTP transport wiring ---
