@@ -35,19 +35,22 @@ export async function getPlatformStats() {
 }
 
 /**
- * get_fee_structure -- this used to return a hardcoded FEE_STRUCTURE
- * constant (a "target" 0.5% split) with a note admitting the live on-chain
- * value was actually different (0.05%). That meant the tool was always
- * reporting a number that didn't match what the program actually charges.
+ * get_fee_structure -- live protocol fee, read from GlobalState.
  *
- * This now reads the live fee directly off GlobalState. IMPORTANT: the
- * exact field name below (feeBasisPoints) is a best guess based on the
- * program docs referencing "constants.rs FEE_BASIS_POINTS" -- confirm the
- * real camelCase field name Anchor generates for your IDL (log `acc` once
- * against a real GlobalState fetch, or check target/idl/trust_express.json
- * for the GlobalState account's field list) and adjust the property access
- * below if it doesn't match. Failing loudly here is intentional: better to
- * throw than to silently report last quarter's hardcoded guess again.
+ * Field name and scale both confirmed directly against Rust source:
+ *   - state/global_state.rs:      pub fee_percentage: u16
+ *   - instructions/fee_management.rs (update_fee_percentage): stores and
+ *     logs this value AS basis points, e.g.
+ *       "Fee percentage updated from {} basis points ({:.2}%) ..."
+ *       old_fee_percentage as f64 / 100.0   // bps -> percent
+ *   - constants.rs: pub const FEE_BASIS_POINTS: u16 = 5;  (the default,
+ *     0.05%, matches the protocol overview's stated "5 basis points")
+ *   - update_fee_percentage() caps this at 1000 (10%), so any value read
+ *     back should be <= 1000 -- a value above that would indicate we're
+ *     reading the wrong field again.
+ *
+ * The account field is named fee_percentage but stores basis points, not a
+ * direct percentage -- keep the /100 conversion, don't drop it.
  */
 export async function getFeeStructure() {
   const program = getProgram();
@@ -58,19 +61,30 @@ export async function getFeeStructure() {
 
   const acc = await (program.account as any).globalState.fetch(globalStatePda);
 
-  const feeBasisPoints = acc.feeBasisPoints ?? acc.fee_basis_points;
+  const feeBasisPoints = acc.feePercentage;
   if (feeBasisPoints === undefined) {
     throw new Error(
-      "GlobalState account has no feeBasisPoints field. The real field name " +
-        "on your program's GlobalState struct differs -- update the property " +
-        "access in getFeeStructure() (src/tools/platformStats.ts) to match " +
-        "your actual IDL, rather than falling back to a hardcoded number."
+      "GlobalState account has no feePercentage field. This was confirmed " +
+        "against state/global_state.rs -- if this throws, either the IDL is " +
+        "stale relative to the deployed program, or the account layout has " +
+        "changed since. Re-check the IDL matches the current on-chain program."
+    );
+  }
+
+  const basisPoints = Number(feeBasisPoints);
+  if (basisPoints > 1000) {
+    // update_fee_percentage() rejects anything above 1000 (10%), so a value
+    // over that means we're almost certainly reading the wrong field again.
+    throw new Error(
+      `feePercentage read as ${basisPoints}, which exceeds the program's own ` +
+        `10% (1000 bps) cap from update_fee_percentage(). This value is not ` +
+        `trustworthy -- likely reading the wrong field or a stale IDL.`
     );
   }
 
   return {
-    feeBasisPoints: Number(feeBasisPoints),
-    feePercent: Number(feeBasisPoints) / 100,
-    source: "live on-chain GlobalState account",
+    feeBasisPoints: basisPoints,
+    feePercent: basisPoints / 100,
+    source: "live on-chain GlobalState account (fee_percentage field, stored as basis points)",
   };
 }
