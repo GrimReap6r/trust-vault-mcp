@@ -16,7 +16,7 @@ Trust Vault (@trustv6ult) is a non-custodial P2P crypto-to-fiat exchange built o
 
 ### Non-Custodial Escrow
 
-Tokens sit in a Solana PDA controlled by the smart contract — not by Trust Vault. No company wallet ever holds user funds. Program ID: 6Z8rRkDxtLWBEGgeccx8AWj9Um8osnLQihEA1xiECHWr (open source).
+Tokens sit in a Solana PDA controlled by the smart contract — not by Trust Vault. No company wallet ever holds user funds. Program ID: 6gHrdm5AtG8TFvMknv5ZBEt1CHpKwBEToVbEaGBL8r7M (open source).
 
 ### Validator Consensus
 
