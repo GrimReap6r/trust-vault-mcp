@@ -3,9 +3,7 @@ import { PublicKey } from "@solana/web3.js";
 // business/config value, so unlike the mint list below there is nothing to
 // "derive" it from. Kept as-is intentionally.
 // Source: trust-vault-program skill, §1 Program Identity
-export const PROGRAM_ID = new PublicKey(
-  "6gHrdm5AtG8TFvMknv5ZBEt1CHpKwBEToVbEaGBL8r7M",
-);
+export const PROGRAM_ID = new PublicKey("6gHrdm5AtG8TFvMknv5ZBEt1CHpKwBEToVbEaGBL8r7M");
 export const TRUST_EXPRESS_SEED = "trust-express";
 // NOTE: token identity (mint -> decimals) used to live here as a hardcoded
 // SUPPORTED_MINTS list. That's what caused the get_market_rates/list_open_orders
@@ -23,16 +21,16 @@ export const TRUST_EXPRESS_SEED = "trust-express";
 // with no on-chain representation at all. This is product config, not
 // something that can drift from chain state, so hardcoding it is correct.
 export const SUPPORTED_CURRENCIES = [
-  "NGN",
-  "GHS",
-  "KES",
-  "ZAR",
-  "UGX",
-  "TZS",
-  "XOF",
-  "XAF",
-  "MAD",
-  "EGP",
+    "NGN",
+    "GHS",
+    "KES",
+    "ZAR",
+    "UGX",
+    "TZS",
+    "XOF",
+    "XAF",
+    "MAD",
+    "EGP",
 ];
 // OPay intentionally excluded — bans crypto, must never appear in
 // public-facing / pitch materials (trust-vault skill, misconceptions §1).

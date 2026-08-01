@@ -54,7 +54,11 @@ export async function getMarketRates(args: { token?: string; currency?: string }
     tokenMint: best.mint,
     currency: best.currency,
     pricePerToken: best.pricePerToken,
+    // Full address included so this can be passed straight into
+    // get_order_status without a separate lookup -- bestLpOrderAddress
+    // (truncated) kept for display/back-compat.
     bestLpOrderAddress: best.orderAddressTruncated,
+    bestLpOrderAddressFull: best.orderAddress,
   };
 }
 
@@ -77,7 +81,11 @@ export async function listOpenOrders(args: {
   });
 
   return filtered.map((o) => ({
-    orderAddress: o.orderAddressTruncated,
+    // Full address, not just the truncated display form -- callers (this
+    // MCP server included, via get_order_status) need the real PDA to look
+    // an order up further. Truncated form kept alongside for display.
+    orderAddress: o.orderAddress,
+    orderAddressDisplay: o.orderAddressTruncated,
     orderType: o.orderType,
     tokenMint: o.mint,
     currency: o.currency,
