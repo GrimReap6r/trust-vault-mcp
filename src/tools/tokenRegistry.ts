@@ -17,10 +17,22 @@ import { getConnection } from "../program.js";
  * re-introducing a hardcoded symbol table.
  */
 
-const decimalsCache = new Map<string, number>();
+interface MintInfo {
+  decimals: number;
+  programId: PublicKey; // TOKEN_PROGRAM_ID or TOKEN_2022_PROGRAM_ID -- see resolveMintInfo below
+}
 
-export async function getDecimalsForMint(mint: string): Promise<number> {
-  const cached = decimalsCache.get(mint);
+const mintInfoCache = new Map<string, MintInfo>();
+
+/**
+ * Shared owner-detection + getMint() call. Both decimals and the owning
+ * token program (legacy vs Token-2022) come from the same account lookup,
+ * so this is fetched and cached once per mint instead of being duplicated
+ * wherever an instruction needs `tokenProgram` for its accounts object
+ * (e.g. create_express_buy_order, instant_reserve).
+ */
+async function resolveMintInfo(mint: string): Promise<MintInfo> {
+  const cached = mintInfoCache.get(mint);
   if (cached !== undefined) return cached;
 
   const connection = getConnection();
@@ -57,8 +69,20 @@ export async function getDecimalsForMint(mint: string): Promise<number> {
   }
 
   const mintInfo = await getMint(connection, mintPubkey, "confirmed", programId);
-  decimalsCache.set(mint, mintInfo.decimals);
-  return mintInfo.decimals;
+  const result: MintInfo = { decimals: mintInfo.decimals, programId };
+  mintInfoCache.set(mint, result);
+  return result;
+}
+
+export async function getDecimalsForMint(mint: string): Promise<number> {
+  return (await resolveMintInfo(mint)).decimals;
+}
+
+/** Which token program (legacy Token vs Token-2022) actually owns this mint
+ * -- needed for the `tokenProgram` account on any instruction that touches
+ * the mint or an ATA of it (create_express_buy_order, instant_reserve). */
+export async function getTokenProgramForMint(mint: string): Promise<PublicKey> {
+  return (await resolveMintInfo(mint)).programId;
 }
 
 /**

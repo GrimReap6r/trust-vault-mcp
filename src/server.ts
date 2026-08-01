@@ -5,12 +5,18 @@ import { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
+import { BN } from "@coral-xyz/anchor";
+import { PublicKey } from "@solana/web3.js";
 
 import { getMarketRates, listOpenOrders, listKnownTokens } from "./tools/marketData.js";
 import { getOrderStatus } from "./tools/orderStatus.js";
 import { getPlatformStats, getFeeStructure } from "./tools/platformStats.js";
 import { getProtocolOverview, getCurrenciesAndProcessors } from "./tools/staticInfo.js";
 import { SUPPORTED_CURRENCIES } from "./constants.js";
+import { prepareBuyOrder, buildCreateBuyOrderAccounts } from "./tools/prepareOrder.js";
+import { generateMerchantQr } from "./tools/merchantQr.js";
+import { getIntent } from "./paymentIntents.js";
+import { getProgram, getConnection } from "./program.js";
 
 function textResult(data: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
@@ -128,6 +134,51 @@ function buildServer(): McpServer {
     async () => textResult(getCurrenciesAndProcessors())
   );
 
+  server.registerTool(
+    "prepare_buy_order",
+    {
+      title: "Prepare a new BUY order (LP)",
+      description:
+        "For an LP creating a new express buy order. Validates inputs, derives the order's " +
+        "future TrustExpress PDA, and returns a Solana Pay QR/URL -- scanning it with Phantom " +
+        "or Backpack lets the LP review and sign the create_express_buy_order transaction. " +
+        "Does not move funds itself.",
+      inputSchema: {
+        buyerWallet: z.string().describe("LP's base58 wallet pubkey"),
+        mint: z.string().describe("Full token mint address"),
+        amount: z.number().describe("Amount in display units, e.g. 500 (not raw)"),
+        pricePerToken: z.number().describe("Plain whole-currency units per whole token, e.g. 1650 = ₦1650/token"),
+        currency: z.enum(SUPPORTED_CURRENCIES),
+        paymentInstructions: z.string().max(100),
+        credentialId: z.string().optional(),
+      },
+    },
+    async (args) => textResult(await prepareBuyOrder(args))
+  );
+
+  server.registerTool(
+    "generate_merchant_qr",
+    {
+      title: "Generate a merchant scan-to-pay QR",
+      description:
+        "Finds the best available open BUY order for a fiat amount/currency and returns a " +
+        "Solana Pay QR pointed at Trust Vault's existing /api/solana-pay/instant-reserve " +
+        "endpoint -- the same one the merchant web page uses. Scanning and paying reserves " +
+        "against that LP's order with the merchant's bank details as payout.",
+      inputSchema: {
+        fiatAmount: z.number(),
+        currency: z.enum(SUPPORTED_CURRENCIES),
+        payoutDetails: z.object({
+          accountNumber: z.string(),
+          bankCode: z.string(),
+          bankName: z.string(),
+          beneficiaryName: z.string(),
+        }),
+      },
+    },
+    async (args) => textResult(await generateMerchantQr(args))
+  );
+
   return server;
 }
 
@@ -153,6 +204,67 @@ app.use(express.json());
 // for a basic "is the process up" check.
 app.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok" });
+});
+
+// Solana Pay transaction-request routes. Only used by prepare_buy_order's
+// flow (LP creating a new order) -- generate_merchant_qr points at Trust
+// Vault's existing Next.js /api/solana-pay/instant-reserve route instead,
+// so it never hits these.
+app.get("/pay/:reference", async (req, res) => {
+  const intent = getIntent(req.params.reference);
+  if (!intent) return res.status(404).json({ error: "Unknown or expired payment request" });
+  res.json({
+    label: "Trust Vault",
+    icon: "https://trustv6ult.xyz/icon.png", // TODO: confirm this asset actually exists
+  });
+});
+
+app.post("/pay/:reference", async (req, res) => {
+  const intent = getIntent(req.params.reference);
+  if (!intent) return res.status(404).json({ error: "Unknown or expired payment request" });
+
+  const walletPubkey = new PublicKey(req.body.account); // wallet identifies itself here
+  const program = getProgram();
+
+  let transaction;
+  if (intent.kind === "create_buy_order") {
+    // Accounts confirmed against trust_express.json's
+    // instructions[name="create_express_buy_order"].accounts -- see
+    // buildCreateBuyOrderAccounts in tools/prepareOrder.ts for the source.
+    const accounts = await buildCreateBuyOrderAccounts({
+      buyer: walletPubkey,
+      mint: intent.mint,
+      seed: BigInt(intent.seed),
+    });
+
+    transaction = await program.methods
+      .createExpressBuyOrder(
+        new BN(intent.seed),
+        new BN(intent.amountRaw),
+        new BN(intent.pricePerToken),
+        Array.from(Buffer.from(intent.currency)),
+        intent.paymentInstructions,
+        intent.credentialId
+      )
+      .accounts(accounts as any)
+      .transaction();
+  } else {
+    // reserve_against_buy_order path shouldn't reach here in practice --
+    // generate_merchant_qr no longer stores this intent kind, it routes
+    // straight to the existing instant-reserve endpoint instead. The IDL's
+    // instant_reserve accounts ARE now confirmed too (trust_express,
+    // maker, taker, mint, taker_ata, trust_express_ata, global_state,
+    // token_program, associated_token_program, system_program) if this
+    // ever needs wiring up for real.
+    return res.status(501).json({ error: "instant_reserve builder not wired for this route" });
+  }
+
+  transaction.feePayer = walletPubkey;
+  const { blockhash } = await getConnection().getLatestBlockhash();
+  transaction.recentBlockhash = blockhash;
+
+  const serialized = transaction.serialize({ requireAllSignatures: false }).toString("base64");
+  res.json({ transaction: serialized, message: "Confirm your Trust Vault order" });
 });
 
 // This service has no auth in front of it, so a simple per-IP rate limit
