@@ -180,9 +180,17 @@ app.post("/mcp", mcpRateLimiter, async (req, res) => {
         transports.set(id, transport!);
       },
     });
-    res.on("close", () => {
+    // Clean up when the SESSION actually ends (client sends DELETE, or the
+    // transport itself tears down) — not when a single request's stream
+    // closes. In HTTP/2 (which Railway uses), each POST is its own stream
+    // and closes as soon as that response finishes sending, which is not
+    // the same as the client being done with the session. Using res.on
+    // ("close") here was deleting the session immediately after the very
+    // first response (initialize), before the client could ever call
+    // tools/list.
+    transport.onclose = () => {
       if (transport?.sessionId) transports.delete(transport.sessionId);
-    });
+    };
     await server.connect(transport);
   }
 
