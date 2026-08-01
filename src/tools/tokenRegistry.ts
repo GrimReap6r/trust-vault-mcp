@@ -1,5 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
-import { getMint } from "@solana/spl-token";
+import { getMint, TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { getConnection } from "../program.js";
 
 /**
@@ -24,7 +24,39 @@ export async function getDecimalsForMint(mint: string): Promise<number> {
   if (cached !== undefined) return cached;
 
   const connection = getConnection();
-  const mintInfo = await getMint(connection, new PublicKey(mint));
+  const mintPubkey = new PublicKey(mint);
+
+  // getMint() needs to know which token program owns this mint account --
+  // it defaults to assuming the legacy Token program, and throws
+  // TokenInvalidAccountOwnerError if the account is actually owned by a
+  // different program. Mints can legitimately be owned by either the
+  // legacy SPL Token program or the newer Token-2022 program, so check the
+  // real on-chain owner first instead of assuming. Confirmed via debug
+  // script against production: the current open devnet order's mint threw
+  // exactly this error under the legacy-only assumption.
+  const accountInfo = await connection.getAccountInfo(mintPubkey);
+  if (!accountInfo) {
+    throw new Error(
+      `Mint account ${mint} not found on-chain via ${connection.rpcEndpoint}. ` +
+        `Check SOLANA_RPC_URL is pointed at the same network this order was created on.`
+    );
+  }
+
+  const owner = accountInfo.owner;
+  let programId: PublicKey;
+  if (owner.equals(TOKEN_PROGRAM_ID)) {
+    programId = TOKEN_PROGRAM_ID;
+  } else if (owner.equals(TOKEN_2022_PROGRAM_ID)) {
+    programId = TOKEN_2022_PROGRAM_ID;
+  } else {
+    throw new Error(
+      `Mint ${mint} is owned by program ${owner.toString()}, which is neither ` +
+        `the legacy Token program (${TOKEN_PROGRAM_ID.toString()}) nor Token-2022 ` +
+        `(${TOKEN_2022_PROGRAM_ID.toString()}). Not a recognized token mint.`
+    );
+  }
+
+  const mintInfo = await getMint(connection, mintPubkey, "confirmed", programId);
   decimalsCache.set(mint, mintInfo.decimals);
   return mintInfo.decimals;
 }
