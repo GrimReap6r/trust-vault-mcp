@@ -1,11 +1,17 @@
 // src/tools/prepareOrder.ts
-import { BN } from "@coral-xyz/anchor";
+// @coral-xyz/anchor is CommonJS; Node's ESM loader can't statically pull
+// named exports out of it (this is what threw "Named export 'BN' not
+// found" at runtime, even though it type-checked fine). Import the default
+// and destructure instead.
+import pkg from "@coral-xyz/anchor";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import { ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { PROGRAM_ID, TRUST_EXPRESS_SEED, SUPPORTED_CURRENCIES } from "../constants.js";
 import { getDecimalsForMint, getTokenProgramForMint } from "./tokenRegistry.js";
 import { generateReference, transactionRequestUrl, qrDataUri } from "../solanaPay.js";
 import { storeIntent } from "../paymentIntents.js";
+
+const { BN } = pkg;
 
 /** Mirrors create_express_buy_order's seed derivation:
  * seeds = [b"trust-express", maker.key(), seed.to_le_bytes()] */

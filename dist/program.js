@@ -1,7 +1,13 @@
 import { Connection, PublicKey } from "@solana/web3.js";
-import { Program, AnchorProvider } from "@coral-xyz/anchor";
+// @coral-xyz/anchor is CommonJS -- Node's ESM loader can't pull real named
+// exports out of it at runtime (see tools/prepareOrder.ts for the exact
+// error this caused with BN). `type Idl` is safe as a named import since
+// TypeScript erases type-only imports entirely; Program/AnchorProvider are
+// actual values, so those come off the default export instead.
+import anchorPkg from "@coral-xyz/anchor";
 import fs from "node:fs";
 import { PROGRAM_ID } from "./constants.js";
+const { Program, AnchorProvider } = anchorPkg;
 /**
  * IMPORTANT — you need to plug in your real IDL here.
  *

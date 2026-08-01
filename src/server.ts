@@ -5,8 +5,11 @@ import { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
-import { BN } from "@coral-xyz/anchor";
+// @coral-xyz/anchor is CommonJS -- see tools/prepareOrder.ts for why BN has
+// to come off the default export instead of a named import.
+import anchorPkg from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
+import "dotenv/config";
 
 import { getMarketRates, listOpenOrders, listKnownTokens } from "./tools/marketData.js";
 import { getOrderStatus } from "./tools/orderStatus.js";
@@ -17,6 +20,8 @@ import { prepareBuyOrder, buildCreateBuyOrderAccounts } from "./tools/prepareOrd
 import { generateMerchantQr } from "./tools/merchantQr.js";
 import { getIntent } from "./paymentIntents.js";
 import { getProgram, getConnection } from "./program.js";
+
+const { BN } = anchorPkg;
 
 function textResult(data: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };

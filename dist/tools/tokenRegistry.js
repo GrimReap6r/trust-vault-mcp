@@ -1,23 +1,16 @@
 import { PublicKey } from "@solana/web3.js";
 import { getMint, TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { getConnection } from "../program.js";
+const mintInfoCache = new Map();
 /**
- * Replaces the old hardcoded SUPPORTED_MINTS table. Decimals are fetched
- * directly from each mint's on-chain account (the actual source of truth)
- * and cached in-process, instead of being duplicated in a static list that
- * can silently drift from whatever network/deployment the server is
- * actually pointed at.
- *
- * There is deliberately no "symbol" concept here (no USDC/USDT label).
- * Resolving a mint address to a human-readable ticker requires either an
- * external token list or on-chain metadata (Metaplex token metadata), both
- * of which are additional trust/config surfaces of their own. Per product
- * decision, tools now surface the raw mint address instead of guessing or
- * re-introducing a hardcoded symbol table.
+ * Shared owner-detection + getMint() call. Both decimals and the owning
+ * token program (legacy vs Token-2022) come from the same account lookup,
+ * so this is fetched and cached once per mint instead of being duplicated
+ * wherever an instruction needs `tokenProgram` for its accounts object
+ * (e.g. create_express_buy_order, instant_reserve).
  */
-const decimalsCache = new Map();
-export async function getDecimalsForMint(mint) {
-    const cached = decimalsCache.get(mint);
+async function resolveMintInfo(mint) {
+    const cached = mintInfoCache.get(mint);
     if (cached !== undefined)
         return cached;
     const connection = getConnection();
@@ -49,8 +42,18 @@ export async function getDecimalsForMint(mint) {
             `(${TOKEN_2022_PROGRAM_ID.toString()}). Not a recognized token mint.`);
     }
     const mintInfo = await getMint(connection, mintPubkey, "confirmed", programId);
-    decimalsCache.set(mint, mintInfo.decimals);
-    return mintInfo.decimals;
+    const result = { decimals: mintInfo.decimals, programId };
+    mintInfoCache.set(mint, result);
+    return result;
+}
+export async function getDecimalsForMint(mint) {
+    return (await resolveMintInfo(mint)).decimals;
+}
+/** Which token program (legacy Token vs Token-2022) actually owns this mint
+ * -- needed for the `tokenProgram` account on any instruction that touches
+ * the mint or an ATA of it (create_express_buy_order, instant_reserve). */
+export async function getTokenProgramForMint(mint) {
+    return (await resolveMintInfo(mint)).programId;
 }
 /**
  * The `token` argument on get_market_rates / list_open_orders used to
