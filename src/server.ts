@@ -1,4 +1,6 @@
 import express from "express";
+import cors from "cors";
+import rateLimit from "express-rate-limit";
 import { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -132,11 +134,41 @@ function buildServer(): McpServer {
 // --- Streamable HTTP transport wiring ---
 // One MCP server + transport pair per session, per the SDK's session model.
 const app = express();
+
+// Claude.ai (and other MCP clients) connect to this server directly from the
+// browser, so the response needs CORS headers — in particular the session id
+// header, which the client reads to keep making calls on the same session.
+app.use(
+  cors({
+    origin: "*",
+    exposedHeaders: ["Mcp-Session-Id"],
+    allowedHeaders: ["Content-Type", "Mcp-Session-Id"],
+  })
+);
+
 app.use(express.json());
+
+// Cheap liveness check for Railway/uptime monitoring. The /mcp routes always
+// require a valid MCP session (or reject with 400), so they're not useful
+// for a basic "is the process up" check.
+app.get("/health", (_req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
+// This service has no auth in front of it, so a simple per-IP rate limit
+// keeps a stray script or scraper from burning through the Solana RPC
+// provider's request quota. Tune the numbers as real usage patterns emerge.
+const mcpRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please slow down." },
+});
 
 const transports = new Map<string, StreamableHTTPServerTransport>();
 
-app.post("/mcp", async (req, res) => {
+app.post("/mcp", mcpRateLimiter, async (req, res) => {
   const sessionId = req.headers["mcp-session-id"] as string | undefined;
   let transport = sessionId ? transports.get(sessionId) : undefined;
 
@@ -157,7 +189,7 @@ app.post("/mcp", async (req, res) => {
   await transport.handleRequest(req, res, req.body);
 });
 
-app.get("/mcp", async (req, res) => {
+app.get("/mcp", mcpRateLimiter, async (req, res) => {
   const sessionId = req.headers["mcp-session-id"] as string | undefined;
   const transport = sessionId ? transports.get(sessionId) : undefined;
   if (!transport) {
@@ -165,6 +197,20 @@ app.get("/mcp", async (req, res) => {
     return;
   }
   await transport.handleRequest(req, res);
+});
+
+// Streamable HTTP clients may DELETE the session explicitly when they're
+// done, so they don't leak in the in-memory transports map before the
+// `res.on("close", ...)` cleanup in the POST handler would otherwise catch it.
+app.delete("/mcp", mcpRateLimiter, async (req, res) => {
+  const sessionId = req.headers["mcp-session-id"] as string | undefined;
+  const transport = sessionId ? transports.get(sessionId) : undefined;
+  if (!transport) {
+    res.status(400).send("Unknown or missing session");
+    return;
+  }
+  await transport.handleRequest(req, res);
+  transports.delete(sessionId!);
 });
 
 const PORT = process.env.PORT ?? 3939;
