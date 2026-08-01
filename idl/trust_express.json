@@ -1,0 +1,4614 @@
+{
+  "address": "6Z8rRkDxtLWBEGgeccx8AWj9Um8osnLQihEA1xiECHWr",
+  "metadata": {
+    "name": "trust_vault",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "cancel_or_reduce_buy_order",
+      "discriminator": [
+        212,
+        68,
+        226,
+        170,
+        186,
+        51,
+        83,
+        18
+      ],
+      "accounts": [
+        {
+          "name": "buyer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "trust_express",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  117,
+                  115,
+                  116,
+                  45,
+                  101,
+                  120,
+                  112,
+                  114,
+                  101,
+                  115,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "trust_express.maker",
+                "account": "TrustExpress"
+              },
+              {
+                "kind": "account",
+                "path": "trust_express.seed",
+                "account": "TrustExpress"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "new_amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "claim_validator_fees",
+      "docs": [
+        "Validators call this to withdraw their accumulated fee earnings for a",
+        "specific token mint. Transfers from the validator fee pool ATA to the",
+        "validator's own ATA and resets their accumulated balance to zero."
+      ],
+      "discriminator": [
+        153,
+        132,
+        30,
+        181,
+        219,
+        90,
+        236,
+        128
+      ],
+      "accounts": [
+        {
+          "name": "validator",
+          "docs": [
+            "The validator claiming their fees — must match validator_earnings.validator"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "global_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "validator_earnings",
+          "docs": [
+            "The validator's earnings ledger for this mint"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  108,
+                  105,
+                  100,
+                  97,
+                  116,
+                  111,
+                  114,
+                  45,
+                  101,
+                  97,
+                  114,
+                  110,
+                  105,
+                  110,
+                  103,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "validator"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "validator_fee_pool_authority",
+          "docs": [
+            "The dedicated pool authority PDA — signs transfers out of the pool ATA"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  108,
+                  105,
+                  100,
+                  97,
+                  116,
+                  111,
+                  114,
+                  45,
+                  102,
+                  101,
+                  101,
+                  45,
+                  112,
+                  111,
+                  111,
+                  108,
+                  45,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "validator_fee_pool_ata",
+          "docs": [
+            "The pool ATA holding pending validator earnings for this mint"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "validator_fee_pool_authority"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "validator_ata",
+          "docs": [
+            "The validator's own ATA — receives the claimed tokens"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "validator"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_executed_vote",
+      "discriminator": [
+        158,
+        151,
+        86,
+        33,
+        230,
+        157,
+        183,
+        113
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "docs": [
+            "Anyone can call — they receive the vote account rent as reward"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "validator_vote",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "confirm_payout",
+      "discriminator": [
+        148,
+        97,
+        145,
+        2,
+        85,
+        139,
+        4,
+        140
+      ],
+      "accounts": [
+        {
+          "name": "trust_express",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  117,
+                  115,
+                  116,
+                  45,
+                  101,
+                  120,
+                  112,
+                  114,
+                  101,
+                  115,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "trust_express.maker",
+                "account": "TrustExpress"
+              },
+              {
+                "kind": "account",
+                "path": "trust_express.seed",
+                "account": "TrustExpress"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bot_authority",
+          "signer": true
+        },
+        {
+          "name": "maker"
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "trust_express_ata",
+          "writable": true
+        },
+        {
+          "name": "fee_destination_ata"
+        },
+        {
+          "name": "taker_ata"
+        },
+        {
+          "name": "maker_ata"
+        },
+        {
+          "name": "token_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "taker",
+          "type": "pubkey"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "fiat_amount",
+          "type": "u64"
+        },
+        {
+          "name": "currency",
+          "type": "string"
+        },
+        {
+          "name": "payout_reference",
+          "type": "string"
+        },
+        {
+          "name": "success",
+          "type": "bool"
+        },
+        {
+          "name": "message",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "confirm_sell_payment",
+      "discriminator": [
+        28,
+        148,
+        26,
+        79,
+        107,
+        87,
+        193,
+        139
+      ],
+      "accounts": [
+        {
+          "name": "trust_express",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  117,
+                  115,
+                  116,
+                  45,
+                  101,
+                  120,
+                  112,
+                  114,
+                  101,
+                  115,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "trust_express.maker",
+                "account": "TrustExpress"
+              },
+              {
+                "kind": "account",
+                "path": "trust_express.seed",
+                "account": "TrustExpress"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bot_authority",
+          "signer": true
+        },
+        {
+          "name": "maker",
+          "writable": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "trust_express_ata",
+          "writable": true
+        },
+        {
+          "name": "fee_destination_ata",
+          "writable": true
+        },
+        {
+          "name": "taker_ata",
+          "writable": true
+        },
+        {
+          "name": "maker_ata",
+          "writable": true
+        },
+        {
+          "name": "token_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "taker",
+          "type": "pubkey"
+        },
+        {
+          "name": "payout_reference",
+          "type": "string"
+        },
+        {
+          "name": "success",
+          "type": "bool"
+        },
+        {
+          "name": "message",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "create_express_buy_order",
+      "discriminator": [
+        90,
+        125,
+        14,
+        55,
+        71,
+        235,
+        216,
+        109
+      ],
+      "accounts": [
+        {
+          "name": "buyer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "trust_express",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  117,
+                  115,
+                  116,
+                  45,
+                  101,
+                  120,
+                  112,
+                  114,
+                  101,
+                  115,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "buyer"
+              },
+              {
+                "kind": "arg",
+                "path": "seed"
+              }
+            ]
+          }
+        },
+        {
+          "name": "global_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        }
+      ],
+      "args": [
+        {
+          "name": "seed",
+          "type": "u64"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "price_per_token",
+          "type": "u64"
+        },
+        {
+          "name": "currency",
+          "type": "string"
+        },
+        {
+          "name": "payment_instructions",
+          "type": "string"
+        },
+        {
+          "name": "flutterwave_credential_id",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "create_express_sell",
+      "discriminator": [
+        211,
+        203,
+        237,
+        187,
+        77,
+        166,
+        246,
+        120
+      ],
+      "accounts": [
+        {
+          "name": "seller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "seller_ata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "seller"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "trust_express",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  117,
+                  115,
+                  116,
+                  45,
+                  101,
+                  120,
+                  112,
+                  114,
+                  101,
+                  115,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "seller"
+              },
+              {
+                "kind": "arg",
+                "path": "seed"
+              }
+            ]
+          }
+        },
+        {
+          "name": "trust_express_ata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "trust_express"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "global_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        }
+      ],
+      "args": [
+        {
+          "name": "seed",
+          "type": "u64"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "price_per_token",
+          "type": "u64"
+        },
+        {
+          "name": "currency",
+          "type": "string"
+        },
+        {
+          "name": "payment_instructions",
+          "type": "string"
+        },
+        {
+          "name": "flutterwave_credential_id",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "express_withdraw",
+      "discriminator": [
+        232,
+        94,
+        38,
+        122,
+        232,
+        99,
+        98,
+        126
+      ],
+      "accounts": [
+        {
+          "name": "maker",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "trust_express"
+          ]
+        },
+        {
+          "name": "mint",
+          "relations": [
+            "trust_express"
+          ]
+        },
+        {
+          "name": "trust_express",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  117,
+                  115,
+                  116,
+                  45,
+                  101,
+                  120,
+                  112,
+                  114,
+                  101,
+                  115,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "maker"
+              },
+              {
+                "kind": "account",
+                "path": "trust_express.seed",
+                "account": "TrustExpress"
+              }
+            ]
+          }
+        },
+        {
+          "name": "trust_express_ata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "trust_express"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "maker_ata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "maker"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        }
+      ],
+      "args": [
+        {
+          "name": "withdraw_amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "finalize_expired_vote",
+      "docs": [
+        "Anyone can call this after a vote account has expired without consensus.",
+        "Always triggers a full refund to the taker."
+      ],
+      "discriminator": [
+        128,
+        212,
+        175,
+        186,
+        37,
+        139,
+        247,
+        253
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "docs": [
+            "Anyone can call — they receive the vote account's rent as reward"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "global_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "validator_vote",
+          "writable": true
+        },
+        {
+          "name": "trust_express",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  117,
+                  115,
+                  116,
+                  45,
+                  101,
+                  120,
+                  112,
+                  114,
+                  101,
+                  115,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "trust_express.maker",
+                "account": "TrustExpress"
+              },
+              {
+                "kind": "account",
+                "path": "trust_express.seed",
+                "account": "TrustExpress"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "trust_express_ata",
+          "writable": true
+        },
+        {
+          "name": "taker_ata",
+          "writable": true
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "payout_reference",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "initialize_global_state",
+      "discriminator": [
+        232,
+        254,
+        209,
+        244,
+        123,
+        89,
+        154,
+        207
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "global_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "instant_reserve",
+      "discriminator": [
+        49,
+        131,
+        230,
+        138,
+        27,
+        60,
+        108,
+        209
+      ],
+      "accounts": [
+        {
+          "name": "trust_express",
+          "writable": true
+        },
+        {
+          "name": "maker",
+          "relations": [
+            "trust_express"
+          ]
+        },
+        {
+          "name": "taker",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "taker_ata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "taker"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "trust_express_ata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "trust_express"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "global_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "fiat_amount",
+          "type": "u64"
+        },
+        {
+          "name": "currency",
+          "type": "string"
+        },
+        {
+          "name": "payout_details",
+          "type": {
+            "option": "string"
+          }
+        }
+      ]
+    },
+    {
+      "name": "instant_sell_reserve",
+      "discriminator": [
+        52,
+        125,
+        233,
+        43,
+        54,
+        91,
+        93,
+        187
+      ],
+      "accounts": [
+        {
+          "name": "trust_express",
+          "writable": true
+        },
+        {
+          "name": "maker",
+          "relations": [
+            "trust_express"
+          ]
+        },
+        {
+          "name": "buyer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "global_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "payment_mode",
+          "type": "u8"
+        },
+        {
+          "name": "payout_details",
+          "type": {
+            "option": "string"
+          }
+        },
+        {
+          "name": "payout_reference",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "pause_buy_orders",
+      "discriminator": [
+        52,
+        21,
+        251,
+        234,
+        254,
+        117,
+        47,
+        161
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "global_state"
+          ]
+        },
+        {
+          "name": "global_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "paused",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "pause_sell_orders",
+      "discriminator": [
+        156,
+        206,
+        45,
+        210,
+        131,
+        13,
+        16,
+        252
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "global_state"
+          ]
+        },
+        {
+          "name": "global_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "paused",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "register_validator",
+      "docs": [
+        "Register a new validator pubkey into the 5-slot registry.",
+        "Only the authority can call this."
+      ],
+      "discriminator": [
+        118,
+        98,
+        251,
+        58,
+        81,
+        30,
+        13,
+        240
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Must be the stored authority"
+          ],
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "global_state"
+          ]
+        },
+        {
+          "name": "global_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "validator_pubkey",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "remove_validator",
+      "docs": [
+        "Remove a validator from the registry."
+      ],
+      "discriminator": [
+        25,
+        96,
+        211,
+        155,
+        161,
+        14,
+        168,
+        188
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Must be the stored authority"
+          ],
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "global_state"
+          ]
+        },
+        {
+          "name": "global_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "validator_pubkey",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "set_global_stats",
+      "discriminator": [
+        227,
+        191,
+        213,
+        137,
+        83,
+        151,
+        106,
+        1
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "global_state"
+          ]
+        },
+        {
+          "name": "global_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "total_volume",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "total_confirmations",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "total_trust_express_created",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "total_trust_express_closed",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "total_fees_collected",
+          "type": {
+            "option": "u64"
+          }
+        }
+      ]
+    },
+    {
+      "name": "submit_buy_vote",
+      "docs": [
+        "Cast a vote on a buy-order payout (replaces the single-bot confirm_payout)."
+      ],
+      "discriminator": [
+        145,
+        58,
+        12,
+        19,
+        219,
+        115,
+        206,
+        51
+      ],
+      "accounts": [
+        {
+          "name": "validator",
+          "docs": [
+            "Must be a registered validator"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "global_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "trust_express",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  117,
+                  115,
+                  116,
+                  45,
+                  101,
+                  120,
+                  112,
+                  114,
+                  101,
+                  115,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "trust_express.maker",
+                "account": "TrustExpress"
+              },
+              {
+                "kind": "account",
+                "path": "trust_express.seed",
+                "account": "TrustExpress"
+              }
+            ]
+          }
+        },
+        {
+          "name": "validator_vote",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  108,
+                  105,
+                  100,
+                  97,
+                  116,
+                  111,
+                  114,
+                  45,
+                  118,
+                  111,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "trust_express"
+              },
+              {
+                "kind": "arg",
+                "path": "reference_hash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "maker",
+          "writable": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "trust_express_ata",
+          "writable": true
+        },
+        {
+          "name": "fee_destination_ata",
+          "writable": true
+        },
+        {
+          "name": "taker_ata",
+          "writable": true
+        },
+        {
+          "name": "maker_ata",
+          "writable": true
+        },
+        {
+          "name": "validator_fee_pool_authority",
+          "docs": [
+            "Validated against global_state.validator_fee_pool_authority in handler"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  108,
+                  105,
+                  100,
+                  97,
+                  116,
+                  111,
+                  114,
+                  45,
+                  102,
+                  101,
+                  101,
+                  45,
+                  112,
+                  111,
+                  111,
+                  108,
+                  45,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "validator_fee_pool_ata",
+          "docs": [
+            "Pool ATA accumulating the validator 20% share for this mint"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "validator_fee_pool_authority"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "reference_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "payout_reference",
+          "type": "string"
+        },
+        {
+          "name": "taker",
+          "type": "pubkey"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "fiat_amount",
+          "type": "u64"
+        },
+        {
+          "name": "currency",
+          "type": "string"
+        },
+        {
+          "name": "vote",
+          "type": "bool"
+        },
+        {
+          "name": "evidence",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "submit_sell_vote",
+      "docs": [
+        "Cast a vote on a sell-order payment confirmation."
+      ],
+      "discriminator": [
+        232,
+        237,
+        169,
+        169,
+        136,
+        172,
+        31,
+        95
+      ],
+      "accounts": [
+        {
+          "name": "validator",
+          "docs": [
+            "Must be a registered validator"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "global_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "trust_express",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  117,
+                  115,
+                  116,
+                  45,
+                  101,
+                  120,
+                  112,
+                  114,
+                  101,
+                  115,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "trust_express.maker",
+                "account": "TrustExpress"
+              },
+              {
+                "kind": "account",
+                "path": "trust_express.seed",
+                "account": "TrustExpress"
+              }
+            ]
+          }
+        },
+        {
+          "name": "validator_vote",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  108,
+                  105,
+                  100,
+                  97,
+                  116,
+                  111,
+                  114,
+                  45,
+                  118,
+                  111,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "trust_express"
+              },
+              {
+                "kind": "arg",
+                "path": "reference_hash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "maker",
+          "writable": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "trust_express_ata",
+          "writable": true
+        },
+        {
+          "name": "fee_destination_ata",
+          "writable": true
+        },
+        {
+          "name": "taker_ata",
+          "writable": true
+        },
+        {
+          "name": "maker_ata",
+          "writable": true
+        },
+        {
+          "name": "validator_fee_pool_authority",
+          "docs": [
+            "Validated against global_state.validator_fee_pool_authority in handler"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  108,
+                  105,
+                  100,
+                  97,
+                  116,
+                  111,
+                  114,
+                  45,
+                  102,
+                  101,
+                  101,
+                  45,
+                  112,
+                  111,
+                  111,
+                  108,
+                  45,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "validator_fee_pool_ata",
+          "docs": [
+            "Pool ATA accumulating the validator 20% share for this mint"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "validator_fee_pool_authority"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "reference_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "payout_reference",
+          "type": "string"
+        },
+        {
+          "name": "taker",
+          "type": "pubkey"
+        },
+        {
+          "name": "vote",
+          "type": "bool"
+        },
+        {
+          "name": "evidence",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "update_fee_destination",
+      "discriminator": [
+        233,
+        234,
+        249,
+        55,
+        15,
+        29,
+        217,
+        166
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "global_state"
+          ]
+        },
+        {
+          "name": "global_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "new_fee_destination",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "update_fee_percentage",
+      "discriminator": [
+        102,
+        119,
+        197,
+        160,
+        139,
+        102,
+        182,
+        0
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "global_state"
+          ]
+        },
+        {
+          "name": "global_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "new_fee_percentage",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "update_price",
+      "discriminator": [
+        61,
+        34,
+        117,
+        155,
+        75,
+        34,
+        123,
+        208
+      ],
+      "accounts": [
+        {
+          "name": "maker",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "trust_express"
+          ]
+        },
+        {
+          "name": "trust_express",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  117,
+                  115,
+                  116,
+                  45,
+                  101,
+                  120,
+                  112,
+                  114,
+                  101,
+                  115,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "maker"
+              },
+              {
+                "kind": "account",
+                "path": "trust_express.seed",
+                "account": "TrustExpress"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "new_price_per_token",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "update_required_votes",
+      "docs": [
+        "Change the vote threshold (1–5, must not exceed validator_count)."
+      ],
+      "discriminator": [
+        193,
+        185,
+        173,
+        53,
+        145,
+        114,
+        172,
+        248
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Must be the stored authority"
+          ],
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "global_state"
+          ]
+        },
+        {
+          "name": "global_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "required_votes",
+          "type": "u8"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "GlobalState",
+      "discriminator": [
+        163,
+        46,
+        74,
+        168,
+        216,
+        123,
+        133,
+        98
+      ]
+    },
+    {
+      "name": "TrustExpress",
+      "discriminator": [
+        22,
+        110,
+        124,
+        216,
+        223,
+        105,
+        7,
+        33
+      ]
+    },
+    {
+      "name": "ValidatorEarnings",
+      "discriminator": [
+        124,
+        218,
+        205,
+        81,
+        43,
+        64,
+        250,
+        180
+      ]
+    },
+    {
+      "name": "ValidatorVote",
+      "discriminator": [
+        63,
+        68,
+        242,
+        159,
+        202,
+        98,
+        147,
+        175
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "BuyOrdersPausedEvent",
+      "discriminator": [
+        237,
+        135,
+        0,
+        171,
+        227,
+        125,
+        213,
+        6
+      ]
+    },
+    {
+      "name": "ExpressBuyOrderCancelledEvent",
+      "discriminator": [
+        117,
+        193,
+        185,
+        13,
+        45,
+        46,
+        116,
+        139
+      ]
+    },
+    {
+      "name": "ExpressBuyOrderCreatedEvent",
+      "discriminator": [
+        188,
+        250,
+        135,
+        197,
+        56,
+        135,
+        220,
+        82
+      ]
+    },
+    {
+      "name": "ExpressBuyOrderReducedEvent",
+      "discriminator": [
+        108,
+        101,
+        248,
+        185,
+        162,
+        5,
+        179,
+        33
+      ]
+    },
+    {
+      "name": "ExpressCloseFailedEvent",
+      "discriminator": [
+        28,
+        91,
+        60,
+        34,
+        32,
+        87,
+        79,
+        77
+      ]
+    },
+    {
+      "name": "ExpressClosedEvent",
+      "discriminator": [
+        4,
+        0,
+        45,
+        30,
+        70,
+        31,
+        156,
+        161
+      ]
+    },
+    {
+      "name": "ExpressPartialWithdrawalEvent",
+      "discriminator": [
+        62,
+        205,
+        135,
+        105,
+        121,
+        194,
+        185,
+        36
+      ]
+    },
+    {
+      "name": "ExpressPriceUpdatedEvent",
+      "discriminator": [
+        136,
+        128,
+        33,
+        209,
+        231,
+        46,
+        245,
+        5
+      ]
+    },
+    {
+      "name": "ExpressSellOrderCreatedEvent",
+      "discriminator": [
+        71,
+        107,
+        238,
+        113,
+        181,
+        139,
+        174,
+        53
+      ]
+    },
+    {
+      "name": "FeeDestinationUpdatedEvent",
+      "discriminator": [
+        84,
+        169,
+        39,
+        167,
+        102,
+        86,
+        139,
+        92
+      ]
+    },
+    {
+      "name": "FeePercentageUpdatedEvent",
+      "discriminator": [
+        159,
+        56,
+        203,
+        216,
+        111,
+        194,
+        177,
+        206
+      ]
+    },
+    {
+      "name": "InstantPaymentPayoutQueuedEvent",
+      "discriminator": [
+        126,
+        74,
+        232,
+        24,
+        151,
+        193,
+        25,
+        55
+      ]
+    },
+    {
+      "name": "InstantPaymentPayoutResultEvent",
+      "discriminator": [
+        114,
+        61,
+        126,
+        78,
+        83,
+        230,
+        103,
+        231
+      ]
+    },
+    {
+      "name": "InstantPaymentReservedEvent",
+      "discriminator": [
+        1,
+        110,
+        251,
+        231,
+        168,
+        10,
+        216,
+        190
+      ]
+    },
+    {
+      "name": "InstantSellPaymentResultEvent",
+      "discriminator": [
+        242,
+        224,
+        155,
+        109,
+        131,
+        121,
+        91,
+        134
+      ]
+    },
+    {
+      "name": "InstantSellReservationCreatedEvent",
+      "discriminator": [
+        65,
+        196,
+        145,
+        144,
+        214,
+        136,
+        85,
+        139
+      ]
+    },
+    {
+      "name": "SellOrdersPausedEvent",
+      "discriminator": [
+        61,
+        157,
+        167,
+        130,
+        193,
+        42,
+        129,
+        66
+      ]
+    },
+    {
+      "name": "TrustExpressNearlyEmptyEvent",
+      "discriminator": [
+        71,
+        43,
+        217,
+        67,
+        145,
+        137,
+        255,
+        85
+      ]
+    },
+    {
+      "name": "ValidatorFeeClaimedEvent",
+      "discriminator": [
+        171,
+        228,
+        79,
+        129,
+        217,
+        158,
+        255,
+        216
+      ]
+    },
+    {
+      "name": "ValidatorRegisteredEvent",
+      "discriminator": [
+        68,
+        238,
+        147,
+        217,
+        210,
+        141,
+        46,
+        180
+      ]
+    },
+    {
+      "name": "ValidatorRemovedEvent",
+      "discriminator": [
+        49,
+        23,
+        179,
+        208,
+        124,
+        3,
+        231,
+        59
+      ]
+    },
+    {
+      "name": "ValidatorVoteCastEvent",
+      "discriminator": [
+        241,
+        101,
+        64,
+        163,
+        26,
+        185,
+        154,
+        33
+      ]
+    },
+    {
+      "name": "ValidatorVoteExecutedEvent",
+      "discriminator": [
+        42,
+        193,
+        150,
+        227,
+        217,
+        85,
+        224,
+        208
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "CustomError",
+      "msg": "Custom error message"
+    },
+    {
+      "code": 6001,
+      "name": "InsufficientFunds",
+      "msg": "The requested withdrawal amount exceeds the trust express balance."
+    },
+    {
+      "code": 6002,
+      "name": "InvalidWithdrawAmount",
+      "msg": "The withdrawal amount is invalid."
+    },
+    {
+      "code": 6003,
+      "name": "InvalidAmount",
+      "msg": "Invalid amount specified."
+    },
+    {
+      "code": 6004,
+      "name": "InvalidPrice",
+      "msg": "Invalid price specified."
+    },
+    {
+      "code": 6005,
+      "name": "InvalidCurrency",
+      "msg": "Currency code must be exactly 3 characters."
+    },
+    {
+      "code": 6006,
+      "name": "PaymentInstructionsTooLong",
+      "msg": "Payment instructions must be 100 characters or less."
+    },
+    {
+      "code": 6007,
+      "name": "ActiveReservationsExist",
+      "msg": "There is an active reservation."
+    },
+    {
+      "code": 6008,
+      "name": "MissingMakerAta",
+      "msg": "Maker's associated token account is missing."
+    },
+    {
+      "code": 6009,
+      "name": "CannotReduceBelowReserved",
+      "msg": "The reservation amount is invalid."
+    },
+    {
+      "code": 6010,
+      "name": "InsufficientTokens",
+      "msg": "Insufficient tokens available in the trust express."
+    },
+    {
+      "code": 6011,
+      "name": "CalculationError",
+      "msg": "Calculation error occurred."
+    },
+    {
+      "code": 6012,
+      "name": "InvalidReservationIndex",
+      "msg": "Invalid reservation index."
+    },
+    {
+      "code": 6013,
+      "name": "InvalidMaker",
+      "msg": "Invalid maker."
+    },
+    {
+      "code": 6014,
+      "name": "Unauthorized",
+      "msg": "You are not authorized to perform this action."
+    },
+    {
+      "code": 6015,
+      "name": "ReservationNotPending",
+      "msg": "Reservation is not in pending status."
+    },
+    {
+      "code": 6016,
+      "name": "InvalidMint",
+      "msg": "Mint is not invalid."
+    },
+    {
+      "code": 6017,
+      "name": "ArithmeticOverflow",
+      "msg": "Arithemetic overflow."
+    },
+    {
+      "code": 6018,
+      "name": "InvalidTaker",
+      "msg": "Invalid taker for this reservation."
+    },
+    {
+      "code": 6019,
+      "name": "InvalidFeeDestination",
+      "msg": "Invalid fee destination for this reservation."
+    },
+    {
+      "code": 6020,
+      "name": "InvalidProgramId",
+      "msg": "Invalid program ID ."
+    },
+    {
+      "code": 6021,
+      "name": "InvalidComment",
+      "msg": "Invalid comment."
+    },
+    {
+      "code": 6022,
+      "name": "InvalidResolution",
+      "msg": "Invalid resolution status."
+    },
+    {
+      "code": 6023,
+      "name": "PendingReservationsExist",
+      "msg": "Cannot withdraw funds with pending reservations."
+    },
+    {
+      "code": 6024,
+      "name": "CannotDisputeCompletedTransaction",
+      "msg": "Cannot dispute a completed or cancelled transaction"
+    },
+    {
+      "code": 6025,
+      "name": "UnauthorizedDisputer",
+      "msg": "Only the maker or taker can dispute a transaction"
+    },
+    {
+      "code": 6026,
+      "name": "UnauthorizedResolver",
+      "msg": "Only an authorized resolver can resolve a dispute"
+    },
+    {
+      "code": 6027,
+      "name": "NotDisputed",
+      "msg": "Transaction is not in disputed status"
+    },
+    {
+      "code": 6028,
+      "name": "InvalidPaymentInstructions",
+      "msg": "No payment instructions provided"
+    },
+    {
+      "code": 6029,
+      "name": "TooManyReservations",
+      "msg": "Too many active reservations for this trust express."
+    },
+    {
+      "code": 6030,
+      "name": "InvalidTrustExpressType",
+      "msg": "Invalid trust express type"
+    },
+    {
+      "code": 6031,
+      "name": "PaymentNotSent",
+      "msg": "Payment not sent"
+    },
+    {
+      "code": 6032,
+      "name": "ActiveTokenDepositsExist",
+      "msg": "There is an active token deposit"
+    },
+    {
+      "code": 6033,
+      "name": "NoUnreservedTokens",
+      "msg": "All buyer orders are filled"
+    },
+    {
+      "code": 6034,
+      "name": "ReservationNotFound",
+      "msg": "Reservation not found for the given taker and payout reference"
+    },
+    {
+      "code": 6035,
+      "name": "ReservationAlreadyProcessed",
+      "msg": "Reservation has already been processed and cannot be modified"
+    },
+    {
+      "code": 6036,
+      "name": "MissingFeeDestinationAta",
+      "msg": "Fee destination ATA is required when fee amount is greater than zero"
+    },
+    {
+      "code": 6037,
+      "name": "MissingTakerAtaForRefund",
+      "msg": "Taker ATA is required for refunds when payout fails"
+    },
+    {
+      "code": 6038,
+      "name": "InvalidMakerAtaAuthority",
+      "msg": "The provided maker ATA does not belong to the maker"
+    },
+    {
+      "code": 6039,
+      "name": "InvalidCredentialId",
+      "msg": "Invalid Flutterwave credential ID: must be between 1 and 64 characters"
+    },
+    {
+      "code": 6040,
+      "name": "ReservationLimitReached",
+      "msg": "Limit reached, use another order or wait"
+    },
+    {
+      "code": 6041,
+      "name": "InvalidEscrowType",
+      "msg": "Invalide Escrow Type"
+    },
+    {
+      "code": 6042,
+      "name": "InvalidTakerAtaAuthority",
+      "msg": "Invalide Taker Authority"
+    },
+    {
+      "code": 6043,
+      "name": "MissingTakerAta",
+      "msg": "Missing Taker ATA"
+    },
+    {
+      "code": 6044,
+      "name": "InvalidPaymentMode",
+      "msg": "Invalid Payment Mode"
+    },
+    {
+      "code": 6045,
+      "name": "InsufficientAmount",
+      "msg": "Insufficient Amount"
+    },
+    {
+      "code": 6046,
+      "name": "InvalidPayoutReference",
+      "msg": "Invalid Payout Reference"
+    },
+    {
+      "code": 6047,
+      "name": "BuyOrdersPaused",
+      "msg": "Buy orders and reservations are currently paused by admin"
+    },
+    {
+      "code": 6048,
+      "name": "SellOrdersPaused",
+      "msg": "Sell orders and reservations are currently paused by admin"
+    },
+    {
+      "code": 6049,
+      "name": "InvalidFeePercentage",
+      "msg": "Invalid fee percentage: must be between 0 and 1000 basis points (0-10%)"
+    },
+    {
+      "code": 6050,
+      "name": "UnauthorizedValidator",
+      "msg": "Signer is not a registered validator"
+    },
+    {
+      "code": 6051,
+      "name": "AlreadyVoted",
+      "msg": "This validator has already cast a vote for this reservation"
+    },
+    {
+      "code": 6052,
+      "name": "VoteAlreadyExecuted",
+      "msg": "Vote has already been executed"
+    },
+    {
+      "code": 6053,
+      "name": "VoteExpired",
+      "msg": "Vote window has expired — use finalize_expired_vote"
+    },
+    {
+      "code": 6054,
+      "name": "VoteNotYetExpired",
+      "msg": "Vote has not yet expired"
+    },
+    {
+      "code": 6055,
+      "name": "ValidatorSlotsFull",
+      "msg": "All 5 validator slots are occupied"
+    },
+    {
+      "code": 6056,
+      "name": "ValidatorNotFound",
+      "msg": "Validator pubkey not found in registry"
+    },
+    {
+      "code": 6057,
+      "name": "ValidatorAlreadyRegistered",
+      "msg": "Validator is already registered"
+    },
+    {
+      "code": 6058,
+      "name": "VoteSlotsFull",
+      "msg": "All vote slots are occupied (max 5 voters)"
+    },
+    {
+      "code": 6059,
+      "name": "InvalidVoteThreshold",
+      "msg": "Required votes must be between 1 and 5"
+    },
+    {
+      "code": 6060,
+      "name": "ThresholdExceedsValidators",
+      "msg": "Threshold cannot exceed the number of registered validators"
+    },
+    {
+      "code": 6061,
+      "name": "InvalidPoolAuthority",
+      "msg": "Invalid Pool Authority"
+    },
+    {
+      "code": 6062,
+      "name": "NothingToClaim",
+      "msg": "Nothing to claim"
+    },
+    {
+      "code": 6063,
+      "name": "InsufficientPoolBalance",
+      "msg": "Insufficient pool balance"
+    },
+    {
+      "code": 6064,
+      "name": "InvalidReferenceHash",
+      "msg": "Reference hash does not match keccak256(payout_reference)"
+    },
+    {
+      "code": 6065,
+      "name": "ActiveVotesInProgress",
+      "msg": "Cannot remove validator while votes are in progress"
+    },
+    {
+      "code": 6066,
+      "name": "VoteNotYetExecuted",
+      "msg": "Vote has not yet been executed"
+    }
+  ],
+  "types": [
+    {
+      "name": "BuyOrdersPausedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ExpressBuyOrderCancelledEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trust_express",
+            "type": "pubkey"
+          },
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "original_amount",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ExpressBuyOrderCreatedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trust_express",
+            "type": "pubkey"
+          },
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "price_per_token",
+            "type": "u64"
+          },
+          {
+            "name": "currency",
+            "type": "string"
+          },
+          {
+            "name": "payment_instructions",
+            "type": "string"
+          },
+          {
+            "name": "flutterwave_credential_id",
+            "type": {
+              "option": "string"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ExpressBuyOrderReducedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trust_express",
+            "type": "pubkey"
+          },
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "original_amount",
+            "type": "u64"
+          },
+          {
+            "name": "new_amount",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ExpressCloseFailedEvent",
+      "docs": [
+        "Emitted when an attempted close of a trust express fails."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trust_express",
+            "type": "pubkey"
+          },
+          {
+            "name": "maker",
+            "type": "pubkey"
+          },
+          {
+            "name": "remaining_amount",
+            "type": "u64"
+          },
+          {
+            "name": "error_code",
+            "type": "u32"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "reason",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ExpressClosedEvent",
+      "docs": [
+        "Emitted when express_withdraw fully closes the trust express account."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trust_express",
+            "type": "pubkey"
+          },
+          {
+            "name": "maker",
+            "type": "pubkey"
+          },
+          {
+            "name": "remaining_amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ExpressPartialWithdrawalEvent",
+      "docs": [
+        "Emitted when express_withdraw is a partial withdrawal (account stays open)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trust_express",
+            "type": "pubkey"
+          },
+          {
+            "name": "maker",
+            "type": "pubkey"
+          },
+          {
+            "name": "withdrawal_amount",
+            "type": "u64"
+          },
+          {
+            "name": "remaining_amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ExpressPriceUpdatedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trust_express",
+            "type": "pubkey"
+          },
+          {
+            "name": "maker",
+            "type": "pubkey"
+          },
+          {
+            "name": "old_price",
+            "type": "u64"
+          },
+          {
+            "name": "new_price",
+            "type": "u64"
+          },
+          {
+            "name": "currency",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ExpressSellOrderCreatedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trust_express",
+            "type": "pubkey"
+          },
+          {
+            "name": "seller",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "price_per_token",
+            "type": "u64"
+          },
+          {
+            "name": "currency",
+            "type": "string"
+          },
+          {
+            "name": "payment_instructions",
+            "type": "string"
+          },
+          {
+            "name": "flutterwave_credential_id",
+            "type": {
+              "option": "string"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "FeeDestinationUpdatedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "old_fee_destination",
+            "type": "pubkey"
+          },
+          {
+            "name": "new_fee_destination",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FeePercentageUpdatedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "old_fee_percentage",
+            "type": "u16"
+          },
+          {
+            "name": "new_fee_percentage",
+            "type": "u16"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GlobalState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_trust_express_created",
+            "type": "u64"
+          },
+          {
+            "name": "total_trust_express_closed",
+            "type": "u64"
+          },
+          {
+            "name": "total_confirmations",
+            "type": "u64"
+          },
+          {
+            "name": "fee_percentage",
+            "type": "u16"
+          },
+          {
+            "name": "fee_destination",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_fees_collected",
+            "type": "u64"
+          },
+          {
+            "name": "total_disputes",
+            "type": "u64"
+          },
+          {
+            "name": "total_volume",
+            "type": "u64"
+          },
+          {
+            "name": "high_watermark_volume",
+            "type": "u64"
+          },
+          {
+            "name": "last_volume_update",
+            "type": "i64"
+          },
+          {
+            "name": "buy_orders_paused",
+            "type": "bool"
+          },
+          {
+            "name": "sell_orders_paused",
+            "type": "bool"
+          },
+          {
+            "name": "validators",
+            "docs": [
+              "Registered validator pubkeys — empty slots hold Pubkey::default()"
+            ],
+            "type": {
+              "array": [
+                "pubkey",
+                5
+              ]
+            }
+          },
+          {
+            "name": "validator_count",
+            "docs": [
+              "How many non-default slots are currently filled"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "required_votes",
+            "docs": [
+              "Minimum approve votes required to execute a payout (default: 3)"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "validator_fee_pool_authority",
+            "docs": [
+              "The dedicated PDA that has authority over the validator fee pool ATAs.",
+              "Derived as: seeds = [b\"validator-fee-pool-authority\"]",
+              "Stored here for reference and verification in the claim instruction."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "active_vote_count",
+            "docs": [
+              "Number of ValidatorVote PDAs that have been created but not yet executed",
+              "or expired. Incremented on first vote for a new reference, decremented",
+              "on execution (submit_buy/sell_vote) and on expiry (finalize_expired_vote).",
+              "Used by remove_validator to block removal while votes are in flight."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InstantPaymentPayoutQueuedEvent",
+      "docs": [
+        "Emitted when a fiat payout is queued for processing."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trust_express",
+            "type": "pubkey"
+          },
+          {
+            "name": "taker",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "fiat_amount",
+            "type": "u64"
+          },
+          {
+            "name": "currency",
+            "type": "string"
+          },
+          {
+            "name": "payout_reference",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InstantPaymentPayoutResultEvent",
+      "docs": [
+        "Emitted by confirm_payout with the final success/failure result."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trust_express",
+            "type": "pubkey"
+          },
+          {
+            "name": "taker",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "fiat_amount",
+            "type": "u64"
+          },
+          {
+            "name": "currency",
+            "type": "string"
+          },
+          {
+            "name": "payout_reference",
+            "type": "string"
+          },
+          {
+            "name": "success",
+            "type": "bool"
+          },
+          {
+            "name": "message",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InstantPaymentReservedEvent",
+      "docs": [
+        "Emitted by instant_reserve when a taker locks tokens into a buy-order escrow."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trust_express",
+            "type": "pubkey"
+          },
+          {
+            "name": "taker",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "fiat_amount",
+            "type": "u64"
+          },
+          {
+            "name": "currency",
+            "type": "string"
+          },
+          {
+            "name": "payout_details",
+            "type": {
+              "option": "string"
+            }
+          },
+          {
+            "name": "payout_reference",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InstantSellPaymentResultEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trust_express",
+            "type": "pubkey"
+          },
+          {
+            "name": "maker",
+            "type": "pubkey"
+          },
+          {
+            "name": "taker",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "fiat_amount",
+            "type": "u64"
+          },
+          {
+            "name": "currency",
+            "type": "string"
+          },
+          {
+            "name": "payout_reference",
+            "type": "string"
+          },
+          {
+            "name": "success",
+            "type": "bool"
+          },
+          {
+            "name": "message",
+            "type": "string"
+          },
+          {
+            "name": "fee_amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InstantSellReservationCreatedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trust_express",
+            "type": "pubkey"
+          },
+          {
+            "name": "maker",
+            "type": "pubkey"
+          },
+          {
+            "name": "taker",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "fiat_amount",
+            "type": "u64"
+          },
+          {
+            "name": "currency",
+            "type": "string"
+          },
+          {
+            "name": "payment_mode",
+            "type": "u8"
+          },
+          {
+            "name": "payout_reference",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ReservedAmount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "taker",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "fiat_amount",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "seller_instructions",
+            "type": {
+              "option": "string"
+            }
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "dispute_reason",
+            "type": {
+              "option": "string"
+            }
+          },
+          {
+            "name": "dispute_id",
+            "type": {
+              "option": "string"
+            }
+          },
+          {
+            "name": "payout_details",
+            "type": {
+              "option": "string"
+            }
+          },
+          {
+            "name": "payout_reference",
+            "type": {
+              "option": "string"
+            }
+          },
+          {
+            "name": "payment_mode",
+            "docs": [
+              "0 = payment link, 1 = direct transfer with API monitoring"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "payment_link",
+            "docs": [
+              "Flutterwave payment link if payment_mode == 0"
+            ],
+            "type": {
+              "option": "string"
+            }
+          },
+          {
+            "name": "transaction_reference",
+            "type": {
+              "option": "string"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "SellOrdersPausedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TrustExpress",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "seed",
+            "type": "u64"
+          },
+          {
+            "name": "maker",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "currency",
+            "type": {
+              "array": [
+                "u8",
+                3
+              ]
+            }
+          },
+          {
+            "name": "escrow_type",
+            "type": "u8"
+          },
+          {
+            "name": "fee_percentage",
+            "type": "u16"
+          },
+          {
+            "name": "fee_destination",
+            "type": "pubkey"
+          },
+          {
+            "name": "reserved_fee",
+            "type": "u64"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "price_per_token",
+            "type": "u64"
+          },
+          {
+            "name": "payment_instructions",
+            "type": "string"
+          },
+          {
+            "name": "reserved_amounts",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "ReservedAmount"
+                }
+              }
+            }
+          },
+          {
+            "name": "flutterwave_credential_id",
+            "type": {
+              "option": "string"
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TrustExpressNearlyEmptyEvent",
+      "docs": [
+        "Emitted when a trust express balance drops low relative to active reservations."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trust_express",
+            "type": "pubkey"
+          },
+          {
+            "name": "maker",
+            "type": "pubkey"
+          },
+          {
+            "name": "remaining_amount",
+            "type": "u64"
+          },
+          {
+            "name": "active_reservations",
+            "type": "u32"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ValidatorEarnings",
+      "docs": [
+        "Tracks accumulated fee earnings for a single validator on a single token mint.",
+        "Created lazily on the first vote execution where this validator earns fees",
+        "for a given mint — the signing validator pays for initialization.",
+        "",
+        "PDA seeds: [b\"validator-earnings\", validator_pubkey, mint_pubkey]"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "validator",
+            "docs": [
+              "The validator this account belongs to"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "docs": [
+              "The token mint these earnings are denominated in"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "accumulated_amount",
+            "docs": [
+              "Accumulated fees owed to this validator, not yet claimed"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "total_earned",
+            "docs": [
+              "Total lifetime earnings for this validator on this mint (never decrements)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "total_credits",
+            "docs": [
+              "Total number of vote executions this validator has been credited for"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "last_credited_at",
+            "docs": [
+              "Unix timestamp of the last credit"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump for this PDA"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ValidatorFeeClaimedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "validator",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ValidatorRegisteredEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "validator",
+            "type": "pubkey"
+          },
+          {
+            "name": "slot",
+            "type": "u8"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ValidatorRemovedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "validator",
+            "type": "pubkey"
+          },
+          {
+            "name": "slot",
+            "type": "u8"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ValidatorVote",
+      "docs": [
+        "Tracks the 3-of-5 validator votes for a single reservation payout.",
+        "Created by the first validator who votes; filled in by subsequent ones.",
+        "Once `executed` is true the account can be closed by anyone."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trust_express",
+            "docs": [
+              "The TrustExpress PDA this vote is for"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "taker",
+            "docs": [
+              "The taker (seller/buyer) whose reservation is being settled"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "reference_hash",
+            "docs": [
+              "Keccak hash of payout_reference — used as PDA seed (always 32 bytes)"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "votes_for",
+            "docs": [
+              "Number of approve votes received so far"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "votes_against",
+            "docs": [
+              "Number of reject votes received so far"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "voters",
+            "docs": [
+              "Which validators have already voted (prevents double-voting)"
+            ],
+            "type": {
+              "array": [
+                "pubkey",
+                5
+              ]
+            }
+          },
+          {
+            "name": "vote_results",
+            "docs": [
+              "What each voter decided (parallel array to `voters`)"
+            ],
+            "type": {
+              "array": [
+                "bool",
+                5
+              ]
+            }
+          },
+          {
+            "name": "executed",
+            "docs": [
+              "True once the threshold was reached and tokens were moved"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "created_at",
+            "docs": [
+              "Unix timestamp when this vote account was created"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "expires_at",
+            "docs": [
+              "Unix timestamp after which the vote fails and a refund is triggered"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "is_buy_order",
+            "docs": [
+              "Whether this is a buy-side (true) or sell-side (false) confirmation"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "bump for this PDA"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ValidatorVoteCastEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trust_express",
+            "type": "pubkey"
+          },
+          {
+            "name": "validator",
+            "type": "pubkey"
+          },
+          {
+            "name": "payout_reference",
+            "type": "string"
+          },
+          {
+            "name": "vote",
+            "type": "bool"
+          },
+          {
+            "name": "votes_for",
+            "type": "u8"
+          },
+          {
+            "name": "votes_against",
+            "type": "u8"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ValidatorVoteExecutedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trust_express",
+            "type": "pubkey"
+          },
+          {
+            "name": "taker",
+            "type": "pubkey"
+          },
+          {
+            "name": "payout_reference",
+            "type": "string"
+          },
+          {
+            "name": "success",
+            "type": "bool"
+          },
+          {
+            "name": "message",
+            "type": "string"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "fiat_amount",
+            "type": "u64"
+          },
+          {
+            "name": "currency",
+            "type": "string"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    }
+  ],
+  "constants": [
+    {
+      "name": "SEED",
+      "type": "string",
+      "value": "\"anchor\""
+    }
+  ]
+}
