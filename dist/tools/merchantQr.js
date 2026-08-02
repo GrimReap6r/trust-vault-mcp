@@ -1,6 +1,15 @@
 // src/tools/merchantQr.ts
+//
+// v3 — MCP App version. Behavior is the same as v2 (finds best available
+// BUY order, builds the instant-reserve URL behind a short /qr/:id proxy
+// link for scan reliability — see qrProxy.ts's doc comment, unchanged).
+// What's new: the return shape now carries everything registerMerchantQrApp.ts's
+// structuredContent needs to render the card directly, instead of the model
+// having to re-describe fields in prose or the user having to ask for a
+// downloadable image separately. qrCodeDataUri is embedded inline (already
+// existed on this tool, just wasn't previously surfaced to a UI).
 import { fetchAllOrders } from "./fetchOrders.js";
-import { qrDataUri } from "../solanaPay.js"; // keep the QR-encoding helper, drop the rest
+import { qrDataUri } from "../solanaPay.js";
 import { registerShortLink } from "../qrProxy.js";
 export async function generateMerchantQr(args) {
     const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
@@ -31,13 +40,9 @@ export async function generateMerchantQr(args) {
         bank_name: args.payoutDetails.bankName,
         beneficiary_name: args.payoutDetails.beneficiaryName,
     }));
-    // Same cluster-detection logic as page.tsx, mirrored here rather than
-    // guessed, so this tool stays consistent if you add mainnet.
     const rpcUrl = process.env.SOLANA_RPC_URL ?? "";
     const cluster = rpcUrl.includes("devnet") ? "devnet" : rpcUrl.includes("mainnet") ? "mainnet-beta" : "devnet";
     apiUrl.searchParams.set("cluster", cluster);
-    // Register the real (long) instant-reserve URL behind a short opaque id
-    // rather than encoding it directly -- see the module doc comment above.
     const id = registerShortLink(apiUrl.toString());
     const shortUrl = `${process.env.PUBLIC_BASE_URL}/qr/${id}`;
     const solanaPayUrl = `solana:${encodeURIComponent(shortUrl)}`;
@@ -46,8 +51,17 @@ export async function generateMerchantQr(args) {
         orderAddress: best.orderAddress,
         pricePerToken: best.pricePerToken,
         tokenAmount,
+        fiatAmount: args.fiatAmount,
+        currency: args.currency.toUpperCase(),
+        payoutDetails: args.payoutDetails, // echoed back so the card can render it directly
         transactionRequestUrl: solanaPayUrl,
         qrCodeDataUri: await qrDataUri(solanaPayUrl),
         instructions: "Scan this QR (or open the link) with Phantom or Backpack to pay.",
+        // Public/anon-scoped only — same key page.tsx already ships to the
+        // browser (RLS restricts it to SELECT on receipts, see supabase.ts).
+        // Lets the card subscribe to receipt INSERTs directly, the same way
+        // the merchant page does, instead of polling a tool for a taker wallet.
+        supabaseUrl: process.env.SUPABASE_URL,
+        supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
     };
 }

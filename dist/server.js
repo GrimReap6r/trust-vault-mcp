@@ -15,12 +15,12 @@ import { getPlatformStats, getFeeStructure } from "./tools/platformStats.js";
 import { getProtocolOverview, getCurrenciesAndProcessors } from "./tools/staticInfo.js";
 import { SUPPORTED_CURRENCIES } from "./constants.js";
 import { prepareBuyOrder, buildCreateBuyOrderAccounts } from "./tools/prepareOrder.js";
-import { generateMerchantQr } from "./tools/merchantQr.js";
 import { getReceiptByReference, findReceipt } from "./tools/receipt.js";
 import { waitForPayment } from "./tools/waitForPayment.js";
 import { getIntent } from "./paymentIntents.js";
 import { getProgram, getConnection } from "./program.js";
 import { proxyQr } from "./qrProxy.js";
+import { registerMerchantQrApp } from "./widgets/registerMerchantQrApp.js";
 const { BN } = anchorPkg;
 function textResult(data) {
     return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
@@ -137,28 +137,12 @@ function buildServer() {
             credentialId: z.string().optional(),
         },
     }, async (args) => imageResult(await prepareBuyOrder(args)));
-    server.registerTool("generate_merchant_qr", {
-        title: "Generate a merchant scan-to-pay QR",
-        description: "Finds the best available open BUY order for a fiat amount/currency and returns a " +
-            "Solana Pay QR pointed at Trust Vault's existing /api/solana-pay/instant-reserve " +
-            "endpoint -- the same one the merchant web page uses. Scanning and paying reserves " +
-            "against that LP's order with the merchant's bank details as payout.",
-        inputSchema: {
-            fiatAmount: z.number(),
-            currency: z.enum(SUPPORTED_CURRENCIES),
-            payoutDetails: z.object({
-                accountNumber: z.string(),
-                bankCode: z.string(),
-                bankName: z.string(),
-                beneficiaryName: z.string(),
-            }),
-        },
-    }, async (args) => {
-        const result = await generateMerchantQr(args);
-        // No matching liquidity -- result has no qrCodeDataUri to attach, so
-        // this stays plain text rather than going through imageResult.
-        return "qrCodeDataUri" in result ? imageResult(result) : textResult(result);
-    });
+    // ── generate_merchant_qr now lives in registerMerchantQrApp -------------
+    // Moved out of this plain server.registerTool block: it's now an MCP App
+    // tool (renders the live QR/status card widget), registered via
+    // registerMerchantQrApp(server) below buildServer(), alongside its
+    // supporting app-only tool get_receipt_by_order. See
+    // src/widgets/registerMerchantQrApp.ts.
     // ── New: receipt + wait-for-payment tools ────────────────────────────────
     // Neither was previously registered, even though receipt.ts and
     // waitForPayments.ts already implemented them -- get_order_status alone
@@ -211,6 +195,10 @@ function buildServer() {
             sinceUnixSeconds: z.number().describe("Unix timestamp (seconds) of when the reservation was created -- only reservations at or after this time are watched"),
         },
     }, async (args) => textResult(await waitForPayment(args)));
+    // ── MCP App: merchant QR card (generate_merchant_qr + get_receipt_by_order) ──
+    // Renders inline as a live status card instead of raw JSON/base64 -- see
+    // src/widgets/registerMerchantQrApp.ts for the full rationale.
+    registerMerchantQrApp(server);
     return server;
 }
 // --- Streamable HTTP transport wiring ---

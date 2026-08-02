@@ -3,12 +3,14 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run copy-widgets",
     "start": "node dist/server.js",
-    "dev": "tsc && node dist/server.js"
+    "dev": "tsc && node dist/server.js",
+    "copy-widgets": "mkdir -p dist/widgets && cp src/widgets/*.html dist/widgets/"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
+    "@modelcontextprotocol/ext-apps": "^1.7.5",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@solana/spl-token": "^0.4.15",
     "@solana/web3.js": "^1.98.4",

@@ -1,0 +1,327 @@
+<!--
+  merchantQrCard.html
+  ====================
+  MCP App UI resource for generate_merchant_qr (registered under
+  ui://trust-vault/merchant-qr-card in registerMerchantQrApp.ts).
+
+  This is served as RESOURCE_MIME_TYPE ("text/html;profile=mcp-app") and
+  rendered in a sandboxed iframe by any MCP-Apps-capable host (Claude,
+  ChatGPT, Copilot, ...). It receives the tool's `structuredContent` as
+  initial state via the MCP Apps bridge, then — this is the important bit —
+  calls the `wait_for_payment` tool ITSELF via the bridge, on an interval,
+  so the card flips from "Waiting for payment…" to "✅ Paid" live, without
+  the merchant having to come back and ask "poll for the receipt".
+
+  No inline <script src> from third-party CDNs — CSP for MCP App UIs is
+  restrictive-by-default (only domains you declare in the resource's `csp`
+  metadata are reachable), and this widget doesn't need any external
+  network calls of its own; everything routes through the MCP bridge.
+-->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: transparent;
+        color: #f2f2f2;
+      }
+      .card {
+        max-width: 380px;
+        margin: 0 auto;
+        background: #17181c;
+        border: 1px solid #2a2b31;
+        border-radius: 16px;
+        padding: 20px;
+      }
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      .brand {
+        font-weight: 700;
+        font-size: 15px;
+        letter-spacing: 0.2px;
+      }
+      .status-pill {
+        font-size: 12px;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: #3a2f0f;
+        color: #f5c542;
+      }
+      .status-pill[data-state="success"] {
+        background: #0f3a1c;
+        color: #4ade80;
+      }
+      .status-pill[data-state="unknown"] {
+        background: #3a1414;
+        color: #f87171;
+      }
+      .qr-wrap {
+        display: flex;
+        justify-content: center;
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      .qr-wrap img {
+        width: 220px;
+        height: 220px;
+        display: block;
+      }
+      .amount {
+        text-align: center;
+        font-size: 32px;
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+      .subamount {
+        text-align: center;
+        font-size: 13px;
+        color: #9a9ba3;
+        margin-bottom: 18px;
+      }
+      .details {
+        border-top: 1px solid #2a2b31;
+        padding-top: 14px;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        row-gap: 8px;
+        column-gap: 16px;
+        font-size: 13px;
+      }
+      .details dt {
+        color: #9a9ba3;
+      }
+      .details dd {
+        margin: 0;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      button {
+        flex: 1;
+        border: 1px solid #2a2b31;
+        background: #1f2025;
+        color: #f2f2f2;
+        padding: 10px 12px;
+        border-radius: 10px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #26272d;
+      }
+      .receipt-link {
+        display: block;
+        text-align: center;
+        margin-top: 14px;
+        font-size: 12px;
+        color: #7aa2f7;
+        text-decoration: none;
+      }
+      .receipt-link[hidden] {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="card-header">
+        <span class="brand">Trust Vault</span>
+        <span class="status-pill" id="statusPill" data-state="pending"
+          >Waiting for payment…</span
+        >
+      </div>
+
+      <div class="qr-wrap">
+        <img id="qrImage" alt="Scan to pay" />
+      </div>
+
+      <div class="amount" id="amountLabel">—</div>
+      <div class="subamount" id="tokenLabel">—</div>
+
+      <dl class="details">
+        <dt>Beneficiary</dt>
+        <dd id="beneficiary">—</dd>
+        <dt>Bank</dt>
+        <dd id="bank">—</dd>
+        <dt>Account</dt>
+        <dd id="account">—</dd>
+        <dt>Order</dt>
+        <dd id="order">—</dd>
+      </dl>
+
+      <div class="actions">
+        <button id="copyLinkBtn" type="button">Copy pay link</button>
+        <button id="refreshBtn" type="button">Check now</button>
+      </div>
+
+      <a
+        class="receipt-link"
+        id="receiptLink"
+        href="#"
+        target="_blank"
+        rel="noopener"
+        hidden
+      >
+        View full receipt →
+      </a>
+    </div>
+
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm"
+      id="supabase-cdn"
+    ></script>
+    <script type="module">
+      // The MCP Apps client bridge — injected by the host at render time.
+      const bridge = window.mcpApp;
+
+      // supabase-js is loaded as an ES module from the CDN above. This widget's
+      // UI resource MUST declare cdn.jsdelivr.net and your Supabase project's
+      // *.supabase.co domain in its `csp` metadata (see registerMerchantQrApp.ts)
+      // -- MCP App CSP is restrictive-by-default, undeclared domains are blocked.
+      const { createClient } =
+        await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
+
+      let supabase = null;
+      let channel = null;
+
+      function setStatus(state, label) {
+        const pill = document.getElementById("statusPill");
+        pill.dataset.state = state;
+        pill.textContent = label;
+      }
+
+      function render(data) {
+        if (!data || !data.found) return;
+
+        document.getElementById("qrImage").src = data.qrCodeDataUri ?? "";
+        document.getElementById("amountLabel").textContent =
+          `${data.currency ?? "₦"}${data.fiatAmount ?? ""}`;
+        document.getElementById("tokenLabel").textContent = data.tokenAmount
+          ? `≈ ${Number(data.tokenAmount).toFixed(4)} token`
+          : "";
+        document.getElementById("beneficiary").textContent =
+          data.payoutDetails?.beneficiaryName ?? "—";
+        document.getElementById("bank").textContent =
+          data.payoutDetails?.bankName ?? "—";
+        document.getElementById("account").textContent =
+          data.payoutDetails?.accountNumber ?? "—";
+        document.getElementById("order").textContent = data.orderAddress
+          ? `${data.orderAddress.slice(0, 4)}…${data.orderAddress.slice(-4)}`
+          : "—";
+
+        window.__qrState = data;
+        subscribeToReceipt(data.orderAddress);
+      }
+
+      function showReceipt(row) {
+        setStatus("success", "✅ Paid");
+        const link = document.getElementById("receiptLink");
+        const receiptUrl = row.receipt_url ?? row.receiptUrl; // raw Realtime row is snake_case;
+        // manual fallback via get_receipt_by_order returns the mapped camelCase shape -- handle both.
+        if (receiptUrl) {
+          link.href = receiptUrl;
+          link.hidden = false;
+        }
+        if (channel) supabase.removeChannel(channel);
+      }
+
+      function subscribeToReceipt(trustExpressAddress) {
+        if (!trustExpressAddress || channel) return; // already subscribed
+
+        channel = supabase
+          .channel(`receipt-insert-${trustExpressAddress}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "INSERT",
+              schema: "public",
+              table: "receipts",
+              filter: `trust_express_address=eq.${trustExpressAddress}`,
+            },
+            (payload) => {
+              // Each QR carries a distinct customer-facing amount, so match on
+              // that too, not just the shared LP order -- narrows the
+              // remaining ambiguity down to "another customer happened to pay
+              // the exact same amount at the exact same moment", which is a
+              // much smaller window than "any receipt on this order at all".
+              const state = window.__qrState;
+              const amountMatches =
+                Number(payload.new?.fiat_amount) ===
+                  Number(state?.fiatAmount) &&
+                payload.new?.currency === state?.currency;
+              if (!amountMatches) return;
+              showReceipt(payload.new);
+            },
+          )
+          .subscribe();
+      }
+
+      // Manual fallback -- in case the realtime socket drops or never connects
+      // (sandboxed iframes + flaky networks happen). Calls the same
+      // wait_for_payment tool your MCP server already exposes, but only on
+      // demand rather than as the primary mechanism.
+      document
+        .getElementById("refreshBtn")
+        .addEventListener("click", async () => {
+          const state = window.__qrState;
+          if (!state?.orderAddress) return;
+          try {
+            const receiptCheck = await bridge.callTool("get_receipt_by_order", {
+              orderAddress: state.orderAddress,
+              fiatAmount: state.fiatAmount,
+              currency: state.currency,
+            });
+            if (receiptCheck?.found) showReceipt(receiptCheck.receipt);
+          } catch (err) {
+            console.warn("manual receipt check failed", err);
+          }
+        });
+
+      document
+        .getElementById("copyLinkBtn")
+        .addEventListener("click", async () => {
+          const url = window.__qrState?.transactionRequestUrl;
+          if (!url) return;
+          await navigator.clipboard.writeText(url);
+          const btn = document.getElementById("copyLinkBtn");
+          const original = btn.textContent;
+          btn.textContent = "Copied!";
+          setTimeout(() => (btn.textContent = original), 1200);
+        });
+
+      // Initial render from the tool's structuredContent. supabaseUrl/anonKey
+      // ride along on the same payload (see merchantQr.ts) -- the anon key is
+      // safe to expose client-side, it's RLS-scoped to SELECT on receipts only
+      // (same key your Next.js app already ships to the browser in page.tsx).
+      bridge.getState().then((initial) => {
+        if (initial?.supabaseUrl && initial?.supabaseAnonKey) {
+          supabase = createClient(initial.supabaseUrl, initial.supabaseAnonKey);
+        }
+        render(initial);
+      });
+
+      bridge.onStateChange((next) => render(next));
+    </script>
+  </body>
+</html>
