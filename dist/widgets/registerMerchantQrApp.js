@@ -28,7 +28,7 @@ const WIDGET_HTML_PATH = path.join(import.meta.dirname, "merchantQrCard.html");
 // Domains the widget's iframe is allowed to reach. MCP App CSP is
 // restrictive-by-default -- undeclared domains are blocked by the host.
 // Full origin URLs required (not bare hostnames) per McpUiResourceCsp.
-const RESOURCE_DOMAINS = ["https://cdn.jsdelivr.net"];
+const RESOURCE_DOMAINS = ["https://cdn.jsdelivr.net", "data:"];
 const CONNECT_DOMAINS = [
     "https://cdn.jsdelivr.net",
     ...(process.env.SUPABASE_URL ? [process.env.SUPABASE_URL] : []),

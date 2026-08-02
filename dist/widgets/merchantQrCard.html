@@ -186,24 +186,43 @@
       </a>
     </div>
 
-    <script
-      type="module"
-      src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm"
-      id="supabase-cdn"
-    ></script>
     <script type="module">
       // The MCP Apps client bridge — injected by the host at render time.
       const bridge = window.mcpApp;
 
-      // supabase-js is loaded as an ES module from the CDN above. This widget's
-      // UI resource MUST declare cdn.jsdelivr.net and your Supabase project's
-      // *.supabase.co domain in its `csp` metadata (see registerMerchantQrApp.ts)
-      // -- MCP App CSP is restrictive-by-default, undeclared domains are blocked.
-      const { createClient } =
-        await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
-
+      // supabase-js is loaded as an ES module from the CDN, lazily -- see
+      // ensureSupabase() below. IMPORTANT: do NOT top-level-`await` this
+      // import here. A top-level await inside a `type="module"` script
+      // blocks evaluation of the ENTIRE module until the promise settles --
+      // that previously meant bridge.getState().then(render) and the
+      // button click-handler registrations below never ran until the CDN
+      // fetch finished, so if that fetch was slow/blocked/flaky inside the
+      // sandboxed iframe, the whole card (QR image included) silently never
+      // appeared, even though rendering it needs nothing from Supabase --
+      // that's only needed later, for the live "paid" subscription. Also
+      // removed the separate unused `<script src=".../+esm">` tag that used
+      // to sit above this one and duplicated the same import for no reason.
+      //
+      // This widget's UI resource still MUST declare cdn.jsdelivr.net and
+      // your Supabase project's *.supabase.co domain in its `csp` metadata
+      // (see registerMerchantQrApp.ts) -- MCP App CSP is restrictive-by-
+      // default, undeclared domains are blocked.
       let supabase = null;
       let channel = null;
+
+      async function ensureSupabase() {
+        if (supabase) return supabase;
+        const { createClient } =
+          await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
+        const initial = window.__qrState;
+        // supabaseUrl/anonKey ride along on the tool's structuredContent
+        // (see merchantQr.ts) -- read straight off the last-rendered state
+        // rather than re-fetching bridge.getState().
+        if (initial?.supabaseUrl && initial?.supabaseAnonKey) {
+          supabase = createClient(initial.supabaseUrl, initial.supabaseAnonKey);
+        }
+        return supabase;
+      }
 
       function setStatus(state, label) {
         const pill = document.getElementById("statusPill");
@@ -246,10 +265,13 @@
         if (channel) supabase.removeChannel(channel);
       }
 
-      function subscribeToReceipt(trustExpressAddress) {
+      async function subscribeToReceipt(trustExpressAddress) {
         if (!trustExpressAddress || channel) return; // already subscribed
 
-        channel = supabase
+        const client = await ensureSupabase();
+        if (!client) return; // no supabaseUrl/anonKey on this payload -- skip live updates
+
+        channel = client
           .channel(`receipt-insert-${trustExpressAddress}`)
           .on(
             "postgres_changes",
@@ -315,10 +337,9 @@
       // safe to expose client-side, it's RLS-scoped to SELECT on receipts only
       // (same key your Next.js app already ships to the browser in page.tsx).
       bridge.getState().then((initial) => {
-        if (initial?.supabaseUrl && initial?.supabaseAnonKey) {
-          supabase = createClient(initial.supabaseUrl, initial.supabaseAnonKey);
-        }
-        render(initial);
+        render(initial); // paints the QR/amount/details immediately -- no
+        // network dependency. subscribeToReceipt() (called from inside
+        // render()) lazily pulls in Supabase afterwards for live status.
       });
 
       bridge.onStateChange((next) => render(next));
