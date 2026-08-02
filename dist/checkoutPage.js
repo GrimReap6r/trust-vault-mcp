@@ -62,6 +62,18 @@ function renderCard(args) {
     if (/Android|iPhone/i.test(navigator.userAgent)) {
       window.location.href = "${args.solanaUri}";
     }
+
+    // On desktop there's no wallet app to catch the solana: scheme, so
+    // "Open in wallet" is a dead click -- the QR is the only thing that
+    // actually works there (scanned by a phone). Flag that instead of
+    // leaving people to click a button that does nothing.
+    const isDesktop = !/Android|iPhone|iPad/i.test(navigator.userAgent);
+    if (isDesktop) {
+      const hint = document.createElement('p');
+      hint.style.cssText = 'color:#9a9ba3;font-size:13px;margin-top:12px;';
+      hint.textContent = "On desktop, scan the QR above with your phone's wallet app — the button below may not do anything here.";
+      document.querySelector('.card').insertBefore(hint, document.querySelector('.btn'));
+    }
   </script>
 </body>
 </html>`;
