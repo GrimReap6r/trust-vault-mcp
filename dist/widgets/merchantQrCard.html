@@ -2,7 +2,7 @@
   merchantQrCard.html
   ====================
   MCP App UI resource for generate_merchant_qr (registered under
-  ui://trust-vault/merchant-qr-card in registerMerchantQrApp.ts).
+  ui://trust-vault/merchant-qr-card-v2 in registerMerchantQrApp.ts).
 
   This is served as RESOURCE_MIME_TYPE ("text/html;profile=mcp-app") and
   rendered in a sandboxed iframe by any MCP-Apps-capable host (Claude,
@@ -190,14 +190,13 @@
       // The MCP Apps client bridge — injected by the host into this iframe's
       // `window`. IMPORTANT: don't assume it's present the instant this
       // script runs. Confirmed via console: `window.mcpApp` was undefined
-      // at parse time here, so the old `const bridge = window.mcpApp;`
-      // followed immediately by `bridge.getState()` threw
-      // "Cannot read properties of undefined (reading 'getState')" and
-      // killed the whole module before any render() call -- which is why
-      // NOTHING painted, not even the static card shell. The host delivers
-      // the bridge asynchronously (postMessage handshake), not
-      // synchronously at iframe parse time, so this waits for it instead
-      // of grabbing it eagerly.
+      // at parse time here, so `const bridge = window.mcpApp;` followed
+      // immediately by `bridge.getState()` threw "Cannot read properties of
+      // undefined (reading 'getState')" and killed the whole module before
+      // any render() call -- which is why NOTHING painted, not even the
+      // static card shell. The host delivers the bridge asynchronously
+      // (postMessage handshake), not synchronously at iframe parse time, so
+      // this waits for it instead of grabbing it eagerly.
       async function waitForBridge(timeoutMs = 5000) {
         if (window.mcpApp) return window.mcpApp;
         return new Promise((resolve, reject) => {
@@ -222,16 +221,10 @@
 
       // supabase-js is loaded as an ES module from the CDN, lazily -- see
       // ensureSupabase() below. IMPORTANT: do NOT top-level-`await` this
-      // import here. A top-level await inside a `type="module"` script
-      // blocks evaluation of the ENTIRE module until the promise settles --
-      // that previously meant bridge.getState().then(render) and the
-      // button click-handler registrations below never ran until the CDN
-      // fetch finished, so if that fetch was slow/blocked/flaky inside the
-      // sandboxed iframe, the whole card (QR image included) silently never
-      // appeared, even though rendering it needs nothing from Supabase --
-      // that's only needed later, for the live "paid" subscription. Also
-      // removed the separate unused `<script src=".../+esm">` tag that used
-      // to sit above this one and duplicated the same import for no reason.
+      // import here either. A top-level await inside a `type="module"`
+      // script blocks evaluation of the ENTIRE module until the promise
+      // settles -- rendering the QR itself needs nothing from Supabase,
+      // that's only needed later, for the live "paid" subscription.
       //
       // This widget's UI resource still MUST declare cdn.jsdelivr.net and
       // your Supabase project's *.supabase.co domain in its `csp` metadata
@@ -362,10 +355,7 @@
           setTimeout(() => (btn.textContent = original), 1200);
         });
 
-      // Initial render from the tool's structuredContent. supabaseUrl/anonKey
-      // ride along on the same payload (see merchantQr.ts) -- the anon key is
-      // safe to expose client-side, it's RLS-scoped to SELECT on receipts only
-      // (same key your Next.js app already ships to the browser in page.tsx).
+      // Initial render from the tool's structuredContent.
       bridge.getState().then((initial) => {
         render(initial); // paints the QR/amount/details immediately -- no
         // network dependency. subscribeToReceipt() (called from inside

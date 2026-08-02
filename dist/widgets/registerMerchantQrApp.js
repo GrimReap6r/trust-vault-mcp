@@ -1,6 +1,21 @@
 // src/widgets/registerMerchantQrApp.ts
 //
-// v2 — after checking how page.tsx actually solves this: the card does NOT
+// v3 -- bumped RESOURCE_URI (merchant-qr-card -> merchant-qr-card-v2).
+// Reasoning: after fixing the widget's bridge-timing bug in
+// merchantQrCard.html and redeploying, the SAME error kept recurring
+// byte-for-byte identical (same message, same line, same stack) in
+// Claude.ai's console. That's the signature of a host-side cache hit, not
+// the bug re-occurring independently -- the resource is served through a
+// stable per-connector domain (43b0f70d...claudemcpcontent.com, hashed
+// from this MCP server's URL), which strongly suggests Claude.ai caches
+// resource content against the resource URI rather than re-fetching on
+// every tool call. Changing the URI is the simplest way to guarantee a
+// cache miss: there's nothing cached yet for a URI that didn't exist
+// before. If this fixes it, we've confirmed the caching theory. If the
+// identical error still recurs against the new URI, that rules caching
+// out and points back at something in the widget code itself.
+//
+// v2 -- after checking how page.tsx actually solves this: the card does NOT
 // need to discover a taker wallet or poll a bounded-wait tool as its
 // primary mechanism. It opens its own Supabase Realtime subscription
 // (postgres_changes on receipts INSERT, filtered by trust_express_address)
@@ -19,16 +34,16 @@ import path from "node:path";
 import { registerAppTool, registerAppResource, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
 import { generateMerchantQr } from "../tools/merchantQr.js";
 import { getReceiptByOrder } from "../tools/receiptByOrder.js";
-const RESOURCE_URI = "ui://trust-vault/merchant-qr-card";
+// Bumped from "ui://trust-vault/merchant-qr-card" -- see v3 note above.
+const RESOURCE_URI = "ui://trust-vault/merchant-qr-card-v2";
 // tsc does NOT copy .html files into dist/ automatically -- this path only
 // resolves correctly if your build step copies merchantQrCard.html
-// alongside the compiled .js (see the "copy-widgets" step added to
-// package.json's build script).
+// alongside the compiled .js (see the "copy-widgets" step in package.json).
 const WIDGET_HTML_PATH = path.join(import.meta.dirname, "merchantQrCard.html");
 // Domains the widget's iframe is allowed to reach. MCP App CSP is
 // restrictive-by-default -- undeclared domains are blocked by the host.
 // Full origin URLs required (not bare hostnames) per McpUiResourceCsp.
-const RESOURCE_DOMAINS = ["https://cdn.jsdelivr.net", "data:"];
+const RESOURCE_DOMAINS = ["https://cdn.jsdelivr.net"];
 const CONNECT_DOMAINS = [
     "https://cdn.jsdelivr.net",
     ...(process.env.SUPABASE_URL ? [process.env.SUPABASE_URL] : []),
