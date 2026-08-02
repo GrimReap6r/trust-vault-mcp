@@ -187,8 +187,38 @@
     </div>
 
     <script type="module">
-      // The MCP Apps client bridge — injected by the host at render time.
-      const bridge = window.mcpApp;
+      // The MCP Apps client bridge — injected by the host into this iframe's
+      // `window`. IMPORTANT: don't assume it's present the instant this
+      // script runs. Confirmed via console: `window.mcpApp` was undefined
+      // at parse time here, so the old `const bridge = window.mcpApp;`
+      // followed immediately by `bridge.getState()` threw
+      // "Cannot read properties of undefined (reading 'getState')" and
+      // killed the whole module before any render() call -- which is why
+      // NOTHING painted, not even the static card shell. The host delivers
+      // the bridge asynchronously (postMessage handshake), not
+      // synchronously at iframe parse time, so this waits for it instead
+      // of grabbing it eagerly.
+      async function waitForBridge(timeoutMs = 5000) {
+        if (window.mcpApp) return window.mcpApp;
+        return new Promise((resolve, reject) => {
+          const start = Date.now();
+          const poll = setInterval(() => {
+            if (window.mcpApp) {
+              clearInterval(poll);
+              resolve(window.mcpApp);
+            } else if (Date.now() - start > timeoutMs) {
+              clearInterval(poll);
+              reject(
+                new Error(
+                  "window.mcpApp never appeared -- host did not inject the MCP Apps bridge.",
+                ),
+              );
+            }
+          }, 20);
+        });
+      }
+
+      const bridge = await waitForBridge();
 
       // supabase-js is loaded as an ES module from the CDN, lazily -- see
       // ensureSupabase() below. IMPORTANT: do NOT top-level-`await` this
