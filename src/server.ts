@@ -17,6 +17,8 @@ import { getProtocolOverview, getCurrenciesAndProcessors } from "./tools/staticI
 import { SUPPORTED_CURRENCIES } from "./constants.js";
 import { prepareBuyOrder, buildCreateBuyOrderAccounts } from "./tools/prepareOrder.js";
 import { generateMerchantQr } from "./tools/merchantQr.js";
+import { getReceiptByReference, findReceipt } from "./tools/receipt.js";
+import { waitForPayment } from "./tools/waitForPayment.js";
 import { getIntent } from "./paymentIntents.js";
 import { getProgram, getConnection } from "./program.js";
 import { proxyQr } from "./qrProxy.js";
@@ -128,8 +130,11 @@ function buildServer(): McpServer {
       title: "Get order status",
       description:
         "Fetches the live on-chain status of a specific Trust Vault order by its address (PDA), " +
-        "including available amount and any active reservations with their status " +
-        "(pending / payment_sent / completed / cancelled / disputed).",
+        "including available amount and any active reservations. Reservation status labels " +
+        "are pending / completed / expired_refunded (confirmed against submit_validator_vote.rs " +
+        "and finalize_expired_vote) -- note a REJECTED reservation is indistinguishable from a " +
+        "COMPLETED one purely from this on-chain data once it's removed; use get_receipt or " +
+        "wait_for_payment for a real success signal, not this alone.",
       inputSchema: {
         orderAddress: z.string().describe("Full base58 PDA of the TrustExpress order"),
       },
@@ -218,6 +223,77 @@ function buildServer(): McpServer {
       // this stays plain text rather than going through imageResult.
       return "qrCodeDataUri" in result ? imageResult(result as any) : textResult(result);
     }
+  );
+
+  // ── New: receipt + wait-for-payment tools ────────────────────────────────
+  // Neither was previously registered, even though receipt.ts and
+  // waitForPayments.ts already implemented them -- get_order_status alone
+  // can't tell a completed reservation apart from a rejected one once it's
+  // removed (see submit_validator_vote.rs's rejection branch, which calls
+  // the same reserved_amounts.remove(idx) as the success branch). These two
+  // close that gap: a receipts row is the actual off-chain-verified success
+  // signal (receipt.ts's module doc), and wait_for_payment is the bounded
+  // poll that watches for one to appear.
+
+  server.registerTool(
+    "get_receipt",
+    {
+      title: "Get a payment receipt",
+      description:
+        "Looks up a Trust Vault payment receipt by its payout reference (the IP-<timestamp>-" +
+        "<takerprefix> string from a reservation event). A receipt row only ever exists after " +
+        "the off-chain payout processor (Flutterwave/Paystack/Korapay) verified the transfer " +
+        "succeeded -- it is never written on rejection or timeout -- so finding one here is a " +
+        "reliable success signal, unlike an absent on-chain reservation alone. Returns null if " +
+        "no receipt exists yet (which can mean still pending, rejected, or expired -- use " +
+        "get_order_status or wait_for_payment to tell those apart).",
+      inputSchema: {
+        payoutReference: z.string().describe("The payout_reference emitted at reservation time, e.g. IP-1785657017-7mCgjRcy"),
+      },
+    },
+    async (args) => textResult(await getReceiptByReference(args.payoutReference))
+  );
+
+  server.registerTool(
+    "find_receipt",
+    {
+      title: "Find a payment receipt by order + taker",
+      description:
+        "Alternative receipt lookup for when you have the TrustExpress order address and the " +
+        "taker's wallet but not the payout_reference string itself (e.g. right after calling " +
+        "generate_merchant_qr, before the wallet has scanned). Matches on " +
+        "trust_express_address + taker_address + a since-timestamp, since payout_reference " +
+        "isn't known to this server until the customer's wallet generates it on-chain. Returns " +
+        "null if no matching receipt exists yet.",
+      inputSchema: {
+        trustExpressAddress: z.string().describe("Full base58 PDA of the TrustExpress order"),
+        takerAddress: z.string().describe("Base58 wallet pubkey of the paying customer"),
+        sinceIso: z.string().describe("ISO 8601 timestamp -- only receipts created at or after this time are considered"),
+      },
+    },
+    async (args) => textResult(await findReceipt(args))
+  );
+
+  server.registerTool(
+    "wait_for_payment",
+    {
+      title: "Wait for a payment to settle",
+      description:
+        "Bounded poll (up to ~40s, checking every 4s) for a reservation to resolve. Call this " +
+        "right after generate_merchant_qr and a customer scan if you want to wait for " +
+        "confirmation instead of asking again later. Distinguishes three outcomes: 'success' " +
+        "(a matching receipts row was found -- the only trustworthy success signal), 'unknown' " +
+        "(the reservation is no longer active on-chain but no receipt appeared -- could be " +
+        "rejected or refunded, check your dashboard/bank app before treating this as paid), or " +
+        "'pending' (still active after 40s -- call again, nothing was lost).",
+      inputSchema: {
+        orderAddress: z.string().describe("Full base58 PDA of the TrustExpress order"),
+        trustExpressAddress: z.string().describe("Same PDA as orderAddress -- used as the receipt lookup key"),
+        takerWallet: z.string().describe("Base58 wallet pubkey of the paying customer"),
+        sinceUnixSeconds: z.number().describe("Unix timestamp (seconds) of when the reservation was created -- only reservations at or after this time are watched"),
+      },
+    },
+    async (args) => textResult(await waitForPayment(args))
   );
 
   return server;
