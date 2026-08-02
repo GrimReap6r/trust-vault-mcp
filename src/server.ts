@@ -22,6 +22,7 @@ import { getIntent } from "./paymentIntents.js";
 import { getProgram, getConnection } from "./program.js";
 import { proxyQr } from "./qrProxy.js";
 import { registerMerchantQrApp } from "./widgets/registerMerchantQrApp.js";
+import { renderCheckoutPage } from "./checkoutPage.js";
 
 const { BN } = anchorPkg;
 
@@ -306,6 +307,13 @@ app.use(express.json());
 app.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok" });
 });
+
+// Human-facing checkout landing page for a merchant QR's short link -- what
+// "Copy pay link" copies (see merchantQr.ts's checkoutPageUrl and
+// checkoutPage.ts). Intentionally OUTSIDE mcpRateLimiter: this is a human
+// clicking a link in a browser, not an MCP tool call, and shouldn't share
+// that budget.
+app.get("/checkout/:id", renderCheckoutPage);
 
 // Solana Pay transaction-request routes. Only used by prepare_buy_order's
 // flow (LP creating a new order) -- generate_merchant_qr points at Trust

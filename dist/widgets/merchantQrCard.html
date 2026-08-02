@@ -4,6 +4,10 @@
   MCP App UI resource for generate_merchant_qr (registered under
   ui://trust-vault/merchant-qr-card-v2 in registerMerchantQrApp.ts).
 
+  v6: copyLinkBtn now copies checkoutPageUrl (a real https:// landing page,
+  see checkoutPage.ts) instead of the bare transactionRequestUrl solana:
+  URI, which does nothing useful pasted outside a wallet app or QR scanner.
+
   v5: showReceipt() no longer reads row.receipt_url / row.receiptUrl --
   that column is never populated by the settlement bot (confirmed against
   a live Supabase row: receipt_url was null even on a successful payout).
@@ -372,7 +376,10 @@
       document
         .getElementById("copyLinkBtn")
         .addEventListener("click", async () => {
-          const url = window.__qrState?.transactionRequestUrl;
+          // Was: window.__qrState?.transactionRequestUrl (a bare solana: URI --
+          // does nothing useful when pasted outside a wallet app or QR scanner).
+          // Now: the real https:// landing page from checkoutPage.ts.
+          const url = window.__qrState?.checkoutPageUrl;
           if (!url) return;
           await navigator.clipboard.writeText(url);
           const btn = document.getElementById("copyLinkBtn");

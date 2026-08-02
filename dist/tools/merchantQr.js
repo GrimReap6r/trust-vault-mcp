@@ -65,6 +65,9 @@ export async function generateMerchantQr(args) {
         currency: args.currency.toUpperCase(),
         payoutDetails: args.payoutDetails, // echoed back so the card can render it directly
         transactionRequestUrl: solanaPayUrl,
+        // NEW — what "Copy pay link" should actually copy. A real https://
+        // page, not the raw solana: URI (see checkoutPage.ts for why).
+        checkoutPageUrl: `${process.env.PUBLIC_BASE_URL}/checkout/${id}`,
         qrCodeDataUri: await qrDataUri(solanaPayUrl),
         instructions: "Scan this QR (or open the link) with Phantom or Backpack to pay.",
         // Public/anon-scoped only — same key page.tsx already ships to the
