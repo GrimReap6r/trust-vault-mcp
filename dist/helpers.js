@@ -26,23 +26,50 @@ export function decodeEscrowType(escrowType) {
     return val;
 }
 /**
- * ReservedAmount.status is also a plain `u8` (see state/reservation.rs) --
- * same shape as escrow_type, no Anchor enum, so nothing for the IDL to
- * export. Unlike escrow_type, we don't yet have the Rust source that
- * defines the numeric mapping (pending/payment_sent/completed/cancelled/
- * disputed) -- that likely lives in an instruction handler (reserve.rs,
- * confirm_payment.rs, dispute.rs, or similar) that hasn't been shared yet.
+ * ReservedAmount.status is a plain `u8` (see state/reservation.rs), no IDL
+ * enum to read -- same shape as escrow_type above. Confirmed directly
+ * against instructions/submit_validator_vote.rs:
  *
- * Guessing that mapping is exactly the risk this codebase has been
- * deliberately avoiding elsewhere (a "disputed" reservation silently
- * reported as "completed" is worse than an ugly number). So for now this
- * surfaces the raw numeric status, clearly labeled as unresolved, rather
- * than blocking every order/order-status call on it the way the old
- * IDL-lookup did. Once the real constants are confirmed, replace this with
- * the same pattern as decodeEscrowType above.
+ *   0 -- set at creation, in both instant_reserve.rs and
+ *        instant_sell_reserve.rs ("Pending payment")
+ *   2 -- set in submit_validator_vote's handler ONLY on the
+ *        execute_success branch (quorum reached + evidence confirmed),
+ *        immediately before fee split/payout
+ *   3 -- set in finalize_expired_vote, the 30-minute-timeout refund path
+ *        when quorum was never reached
+ *
+ * Status 1 is NOT assigned anywhere in submit_validator_vote.rs. There is
+ * also no "disputed" status set anywhere in that file -- if dispute
+ * handling exists, it lives in a dispute.rs not yet reviewed here.
+ *
+ * IMPORTANT caveat confirmed while cross-checking this: on the REJECTION
+ * path (execute_success == false), the program refunds the taker and then
+ * calls reserved_amounts.remove(idx) -- the exact same removal used on the
+ * success path. No status is ever persisted for a rejected reservation; it
+ * just disappears from the array identically to a completed one. That
+ * means on-chain state alone can NEVER distinguish "succeeded" from
+ * "rejected" once the reservation is gone -- see waitForPayments.ts, which
+ * already treats disappearance as necessary-but-not-sufficient and defers
+ * to the `receipts` table (written only after off-chain payout
+ * verification) as the actual success oracle. Don't be tempted to "fix"
+ * that by reading status here -- there is nothing left to read once the
+ * entry is removed.
  */
+const RESERVATION_STATUS = {
+    0: "pending",
+    2: "completed",
+    3: "expired_refunded",
+};
 export function decodeReservationStatus(status) {
-    return { code: status, label: `unmapped_status_${status}` };
+    const label = RESERVATION_STATUS[status];
+    if (!label) {
+        // status 1 and anything else has no defined meaning in the program as
+        // of submit_validator_vote.rs / finalize_expired_vote -- don't guess,
+        // surface it as unmapped so a real new variant doesn't get silently
+        // mislabeled the way the old IDL-enum lookup risked.
+        return { code: status, label: `unmapped_status_${status}` };
+    }
+    return { code: status, label };
 }
 export function toDisplayAmount(rawAmount, decimals) {
     const raw = typeof rawAmount === "bigint" ? rawAmount : BigInt(rawAmount);
