@@ -4,18 +4,16 @@
   MCP App UI resource for generate_merchant_qr (registered under
   ui://trust-vault/merchant-qr-card-v2 in registerMerchantQrApp.ts).
 
-  This is served as RESOURCE_MIME_TYPE ("text/html;profile=mcp-app") and
-  rendered in a sandboxed iframe by any MCP-Apps-capable host (Claude,
-  ChatGPT, Copilot, ...). It receives the tool's `structuredContent` as
-  initial state via the MCP Apps bridge, then — this is the important bit —
-  calls the `wait_for_payment` tool ITSELF via the bridge, on an interval,
-  so the card flips from "Waiting for payment…" to "✅ Paid" live, without
-  the merchant having to come back and ask "poll for the receipt".
-
-  No inline <script src> from third-party CDNs — CSP for MCP App UIs is
-  restrictive-by-default (only domains you declare in the resource's `csp`
-  metadata are reachable), and this widget doesn't need any external
-  network calls of its own; everything routes through the MCP bridge.
+  CORRECTED: earlier drafts of this file read `window.mcpApp` directly as a
+  host-injected global. That was wrong -- there is no such documented
+  global in the MCP Apps spec. The real client-side integration is the
+  `App` class from the `@modelcontextprotocol/ext-apps` package (the same
+  package used server-side in registerMerchantQrApp.ts), imported here via
+  its ESM CDN build. You register handlers (ontoolresult, etc.) BEFORE
+  calling app.connect() -- the SDK buffers the initial tool result so it
+  isn't missed during the handshake, per the official quickstart. This is
+  the pattern the reference examples and (almost certainly) working
+  third-party widgets like PayBox actually use.
 -->
 <!doctype html>
 <html>
@@ -187,49 +185,18 @@
     </div>
 
     <script type="module">
-      // The MCP Apps client bridge — injected by the host into this iframe's
-      // `window`. IMPORTANT: don't assume it's present the instant this
-      // script runs. Confirmed via console: `window.mcpApp` was undefined
-      // at parse time here, so `const bridge = window.mcpApp;` followed
-      // immediately by `bridge.getState()` threw "Cannot read properties of
-      // undefined (reading 'getState')" and killed the whole module before
-      // any render() call -- which is why NOTHING painted, not even the
-      // static card shell. The host delivers the bridge asynchronously
-      // (postMessage handshake), not synchronously at iframe parse time, so
-      // this waits for it instead of grabbing it eagerly.
-      async function waitForBridge(timeoutMs = 5000) {
-        if (window.mcpApp) return window.mcpApp;
-        return new Promise((resolve, reject) => {
-          const start = Date.now();
-          const poll = setInterval(() => {
-            if (window.mcpApp) {
-              clearInterval(poll);
-              resolve(window.mcpApp);
-            } else if (Date.now() - start > timeoutMs) {
-              clearInterval(poll);
-              reject(
-                new Error(
-                  "window.mcpApp never appeared -- host did not inject the MCP Apps bridge.",
-                ),
-              );
-            }
-          }, 20);
-        });
-      }
+      // The real, documented client SDK -- a static import, resolved before
+      // this module's body runs (unlike a dynamic `await import(...)`,
+      // which only blocks at the point it's called). If this fails, you'll
+      // get a clear network/parse error in the console instead of a
+      // confusing "window.X is undefined" a few lines later.
+      import { App } from "https://cdn.jsdelivr.net/npm/@modelcontextprotocol/ext-apps/+esm";
 
-      const bridge = await waitForBridge();
+      const app = new App({
+        name: "trust-vault-merchant-qr-card",
+        version: "1.0.0",
+      });
 
-      // supabase-js is loaded as an ES module from the CDN, lazily -- see
-      // ensureSupabase() below. IMPORTANT: do NOT top-level-`await` this
-      // import here either. A top-level await inside a `type="module"`
-      // script blocks evaluation of the ENTIRE module until the promise
-      // settles -- rendering the QR itself needs nothing from Supabase,
-      // that's only needed later, for the live "paid" subscription.
-      //
-      // This widget's UI resource still MUST declare cdn.jsdelivr.net and
-      // your Supabase project's *.supabase.co domain in its `csp` metadata
-      // (see registerMerchantQrApp.ts) -- MCP App CSP is restrictive-by-
-      // default, undeclared domains are blocked.
       let supabase = null;
       let channel = null;
 
@@ -237,12 +204,9 @@
         if (supabase) return supabase;
         const { createClient } =
           await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
-        const initial = window.__qrState;
-        // supabaseUrl/anonKey ride along on the tool's structuredContent
-        // (see merchantQr.ts) -- read straight off the last-rendered state
-        // rather than re-fetching bridge.getState().
-        if (initial?.supabaseUrl && initial?.supabaseAnonKey) {
-          supabase = createClient(initial.supabaseUrl, initial.supabaseAnonKey);
+        const state = window.__qrState;
+        if (state?.supabaseUrl && state?.supabaseAnonKey) {
+          supabase = createClient(state.supabaseUrl, state.supabaseAnonKey);
         }
         return supabase;
       }
@@ -279,8 +243,7 @@
       function showReceipt(row) {
         setStatus("success", "✅ Paid");
         const link = document.getElementById("receiptLink");
-        const receiptUrl = row.receipt_url ?? row.receiptUrl; // raw Realtime row is snake_case;
-        // manual fallback via get_receipt_by_order returns the mapped camelCase shape -- handle both.
+        const receiptUrl = row.receipt_url ?? row.receiptUrl;
         if (receiptUrl) {
           link.href = receiptUrl;
           link.hidden = false;
@@ -289,10 +252,10 @@
       }
 
       async function subscribeToReceipt(trustExpressAddress) {
-        if (!trustExpressAddress || channel) return; // already subscribed
+        if (!trustExpressAddress || channel) return;
 
         const client = await ensureSupabase();
-        if (!client) return; // no supabaseUrl/anonKey on this payload -- skip live updates
+        if (!client) return;
 
         channel = client
           .channel(`receipt-insert-${trustExpressAddress}`)
@@ -305,11 +268,6 @@
               filter: `trust_express_address=eq.${trustExpressAddress}`,
             },
             (payload) => {
-              // Each QR carries a distinct customer-facing amount, so match on
-              // that too, not just the shared LP order -- narrows the
-              // remaining ambiguity down to "another customer happened to pay
-              // the exact same amount at the exact same moment", which is a
-              // much smaller window than "any receipt on this order at all".
               const state = window.__qrState;
               const amountMatches =
                 Number(payload.new?.fiat_amount) ===
@@ -322,21 +280,29 @@
           .subscribe();
       }
 
-      // Manual fallback -- in case the realtime socket drops or never connects
-      // (sandboxed iframes + flaky networks happen). Calls the same
-      // wait_for_payment tool your MCP server already exposes, but only on
-      // demand rather than as the primary mechanism.
+      // Register handlers BEFORE app.connect() -- per the SDK's own
+      // quickstart: "Set before app.connect() to avoid missing the initial
+      // tool result." The host delivers generate_merchant_qr's
+      // structuredContent here once the tool call completes server-side.
+      app.ontoolresult = (result) => {
+        render(result.structuredContent);
+      };
+
       document
         .getElementById("refreshBtn")
         .addEventListener("click", async () => {
           const state = window.__qrState;
           if (!state?.orderAddress) return;
           try {
-            const receiptCheck = await bridge.callTool("get_receipt_by_order", {
-              orderAddress: state.orderAddress,
-              fiatAmount: state.fiatAmount,
-              currency: state.currency,
+            const response = await app.callServerTool({
+              name: "get_receipt_by_order",
+              arguments: {
+                orderAddress: state.orderAddress,
+                fiatAmount: state.fiatAmount,
+                currency: state.currency,
+              },
             });
+            const receiptCheck = response?.structuredContent;
             if (receiptCheck?.found) showReceipt(receiptCheck.receipt);
           } catch (err) {
             console.warn("manual receipt check failed", err);
@@ -355,14 +321,7 @@
           setTimeout(() => (btn.textContent = original), 1200);
         });
 
-      // Initial render from the tool's structuredContent.
-      bridge.getState().then((initial) => {
-        render(initial); // paints the QR/amount/details immediately -- no
-        // network dependency. subscribeToReceipt() (called from inside
-        // render()) lazily pulls in Supabase afterwards for live status.
-      });
-
-      bridge.onStateChange((next) => render(next));
+      await app.connect();
     </script>
   </body>
 </html>
