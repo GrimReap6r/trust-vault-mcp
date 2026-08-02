@@ -19,6 +19,7 @@ import { prepareBuyOrder, buildCreateBuyOrderAccounts } from "./tools/prepareOrd
 import { generateMerchantQr } from "./tools/merchantQr.js";
 import { getIntent } from "./paymentIntents.js";
 import { getProgram, getConnection } from "./program.js";
+import { proxyQr } from "./qrProxy.js";
 
 const { BN } = anchorPkg;
 
@@ -306,6 +307,14 @@ app.post("/pay/:reference", async (req, res) => {
   const serialized = transaction.serialize({ requireAllSignatures: false }).toString("base64");
   res.json({ transaction: serialized, message: "Confirm your Trust Vault order" });
 });
+
+// Short-link proxy for generate_merchant_qr. The QR itself only ever
+// encodes solana:<PUBLIC_BASE_URL>/qr/:id -- this forwards the GET/POST
+// through to the real (much longer) Next.js instant-reserve URL registered
+// in merchantQr.ts, so wallet scanners see a small, low-density code
+// instead of the full query-string URL. See src/qrProxy.ts.
+app.get("/qr/:id", proxyQr);
+app.post("/qr/:id", proxyQr);
 
 // This service has no auth in front of it, so a simple per-IP rate limit
 // keeps a stray script or scraper from burning through the Solana RPC

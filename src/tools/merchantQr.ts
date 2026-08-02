@@ -1,15 +1,24 @@
 // src/tools/merchantQr.ts
 import { fetchAllOrders } from "./fetchOrders.js";
 import { qrDataUri } from "../solanaPay.js"; // keep the QR-encoding helper, drop the rest
+import { registerShortLink } from "../qrProxy.js";
 
 /**
  * generate_merchant_qr — v2. Does NOT build any transaction itself and does
- * NOT need a new /pay endpoint on this server. Trust Vault's Next.js app
- * already has a production, tested Solana Pay transaction-request endpoint
- * at /api/solana-pay/instant-reserve (route.ts) that handles capacity
- * checks, integer arithmetic, and building the real instant_reserve
- * transaction. This tool just needs to build the same URL the merchant
- * page (page.tsx, handleGenerateQR) already builds, and hand it back.
+ * NOT need a new signing/transaction endpoint on this server. Trust Vault's
+ * Next.js app already has a production, tested Solana Pay transaction-
+ * request endpoint at /api/solana-pay/instant-reserve (route.ts) that
+ * handles capacity checks, integer arithmetic, and building the real
+ * instant_reserve transaction. This tool builds the same URL the merchant
+ * page (page.tsx, handleGenerateQR) already builds -- but instead of
+ * putting that (long, query-string-heavy) URL directly into the QR, it
+ * registers it behind a short opaque id via qrProxy.ts and encodes
+ * solana:<PUBLIC_BASE_URL>/qr/:id instead. That keeps the QR itself tiny
+ * (a handful of characters) no matter how much the real request needs,
+ * which matters for scan reliability -- dense QR codes from a long URL are
+ * noticeably harder for phone cameras to lock onto. The /qr/:id route
+ * (server.ts) forwards GET/POST through to the real URL server-to-server,
+ * so the wallet app never sees the long form at all.
  *
  * pricePerToken scale (previously flagged as unconfirmed): confirmed via
  * route.ts's GET capacity-check arithmetic — it's plain whole-currency
@@ -74,7 +83,11 @@ export async function generateMerchantQr(args: {
   const cluster = rpcUrl.includes("devnet") ? "devnet" : rpcUrl.includes("mainnet") ? "mainnet-beta" : "devnet";
   apiUrl.searchParams.set("cluster", cluster);
 
-  const solanaPayUrl = `solana:${encodeURIComponent(apiUrl.toString())}`;
+  // Register the real (long) instant-reserve URL behind a short opaque id
+  // rather than encoding it directly -- see the module doc comment above.
+  const id = registerShortLink(apiUrl.toString());
+  const shortUrl = `${process.env.PUBLIC_BASE_URL}/qr/${id}`;
+  const solanaPayUrl = `solana:${encodeURIComponent(shortUrl)}`;
 
   return {
     found: true,

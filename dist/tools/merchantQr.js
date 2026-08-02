@@ -1,6 +1,7 @@
 // src/tools/merchantQr.ts
 import { fetchAllOrders } from "./fetchOrders.js";
 import { qrDataUri } from "../solanaPay.js"; // keep the QR-encoding helper, drop the rest
+import { registerShortLink } from "../qrProxy.js";
 export async function generateMerchantQr(args) {
     const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
     if (!APP_URL) {
@@ -35,7 +36,11 @@ export async function generateMerchantQr(args) {
     const rpcUrl = process.env.SOLANA_RPC_URL ?? "";
     const cluster = rpcUrl.includes("devnet") ? "devnet" : rpcUrl.includes("mainnet") ? "mainnet-beta" : "devnet";
     apiUrl.searchParams.set("cluster", cluster);
-    const solanaPayUrl = `solana:${encodeURIComponent(apiUrl.toString())}`;
+    // Register the real (long) instant-reserve URL behind a short opaque id
+    // rather than encoding it directly -- see the module doc comment above.
+    const id = registerShortLink(apiUrl.toString());
+    const shortUrl = `${process.env.PUBLIC_BASE_URL}/qr/${id}`;
+    const solanaPayUrl = `solana:${encodeURIComponent(shortUrl)}`;
     return {
         found: true,
         orderAddress: best.orderAddress,

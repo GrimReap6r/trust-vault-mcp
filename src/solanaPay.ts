@@ -24,5 +24,10 @@ export function transactionRequestUrl(reference: PublicKey): string {
 }
 
 export async function qrDataUri(uri: string): Promise<string> {
-  return QRCode.toDataURL(uri, { margin: 1, width: 400 });
+  // width/errorCorrectionLevel tuned down from the old 400px/default-M
+  // settings now that generate_merchant_qr encodes a short opaque
+  // /qr/:id link (see qrProxy.ts) instead of the full instant-reserve
+  // URL -- a handful of characters doesn't need a dense, high-EC-level
+  // code, and prepare_buy_order's /pay/:reference URL was already short.
+  return QRCode.toDataURL(uri, { margin: 1, width: 300, errorCorrectionLevel: "L" });
 }
