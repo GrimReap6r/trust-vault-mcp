@@ -140,11 +140,20 @@
       }
       .receipt-link {
         display: block;
+        width: 100%;
         text-align: center;
         margin-top: 14px;
         font-size: 12px;
         color: #7aa2f7;
         text-decoration: none;
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+      }
+      .receipt-link:hover {
+        text-decoration: underline;
+        background: none;
       }
       .receipt-link[hidden] {
         display: none;
@@ -183,9 +192,9 @@
         <button id="refreshBtn" type="button">Check now</button>
       </div>
 
-      <a class="receipt-link" id="receiptLink" href="#" rel="noopener" hidden>
+      <button class="receipt-link" id="receiptLink" type="button" hidden>
         View full receipt →
-      </a>
+      </button>
     </div>
 
     <script type="module">
@@ -254,7 +263,7 @@
         // it's always null; verified against a real successful payout row).
         const base = window.__qrState?.publicBaseUrl;
         if (base && row?.id) {
-          link.href = `${base.replace(/\/$/, "")}/receipts/${row.id}`;
+          link.dataset.receiptUrl = `${base.replace(/\/$/, "")}/receipts/${row.id}`;
           link.hidden = false;
         } else {
           console.warn(
@@ -321,6 +330,42 @@
             if (receiptCheck?.found) showReceipt(receiptCheck.receipt);
           } catch (err) {
             console.warn("manual receipt check failed", err);
+          }
+        });
+
+      document
+        .getElementById("receiptLink")
+        .addEventListener("click", async () => {
+          const btn = document.getElementById("receiptLink");
+          const url = btn.dataset.receiptUrl;
+          if (!url) return;
+
+          // Feature-detect: openLinks is a host capability (see
+          // specification/2026-01-26/apps.mdx), not something this widget
+          // can request via _meta.ui.permissions. Older/other hosts may not
+          // support it at all.
+          if (!app.getHostCapabilities()?.openLinks) {
+            await navigator.clipboard.writeText(url);
+            btn.textContent = "Host can't open links — link copied instead";
+            return;
+          }
+
+          const original = btn.textContent;
+          try {
+            const { isError } = await app.openLink({ url });
+            if (isError) {
+              // Host declined (blocked domain, user cancelled, etc.) --
+              // per app.ts's own JSDoc, fall back to copyable text rather
+              // than silently failing.
+              await navigator.clipboard.writeText(url);
+              btn.textContent = "Couldn't open — link copied instead";
+              setTimeout(() => (btn.textContent = original), 2000);
+            }
+          } catch (err) {
+            console.warn("openLink failed", err);
+            await navigator.clipboard.writeText(url);
+            btn.textContent = "Couldn't open — link copied instead";
+            setTimeout(() => (btn.textContent = original), 2000);
           }
         });
 
