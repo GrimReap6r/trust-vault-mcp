@@ -67,7 +67,18 @@ export async function findReceipt(args) {
         .maybeSingle();
     if (error)
         throw new Error(`Supabase receipts query failed: ${error.message}`);
-    return data ? mapRow(data) : null;
+    if (!data)
+        return null;
+    // CONFIRMED against a real completed trade (IP-1785681351-7mCgjRcy):
+    // status is exactly "success" (lowercase) once settlement completes, with
+    // transaction_signature populated at the same time. A "pending" row (seen
+    // separately, when the settlement bot was offline) has status "pending"
+    // and transaction_signature null -- that combination must NOT be reported
+    // as a match here.
+    if (data.status !== "success" || !data.transaction_signature) {
+        return null;
+    }
+    return mapRow(data);
 }
 /** get_receipt -- pull and display a specific receipt by its known reference. */
 export async function getReceiptByReference(payoutReference) {
