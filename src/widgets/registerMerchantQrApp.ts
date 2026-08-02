@@ -1,5 +1,14 @@
 // src/widgets/registerMerchantQrApp.ts
 //
+// v4 -- added `permissions: { clipboardWrite: {} }` to the UI resource's
+// _meta.ui. This is what actually gates navigator.clipboard.writeText()
+// inside the sandboxed iframe -- per the MCP Apps spec, `permissions` maps
+// to the iframe's `allow="..."` attribute (Permissions-Policy), and it is
+// read from the RESOURCE's _meta.ui, not the tool's. We only ever had
+// `csp` set here, which controls network/embed origins, not browser
+// capability grants -- that's why "Copy pay link" was hitting
+// NotAllowedError even though the click-handler code itself was fine.
+//
 // v3 -- bumped RESOURCE_URI (merchant-qr-card -> merchant-qr-card-v2).
 // Reasoning: after fixing the widget's bridge-timing bug in
 // merchantQrCard.html and redeploying, the SAME error kept recurring
@@ -73,6 +82,13 @@ export function registerMerchantQrApp(server: McpServer) {
               csp: {
                 resourceDomains: RESOURCE_DOMAINS,
                 connectDomains: CONNECT_DOMAINS,
+              },
+              // NEW (v4): grants navigator.clipboard.writeText() inside the
+              // sandboxed iframe via allow="clipboard-write". Must live here
+              // on the resource's _meta.ui -- the same field on the tool's
+              // _meta.ui below is a no-op per the MCP Apps spec.
+              permissions: {
+                clipboardWrite: {},
               },
             },
           },

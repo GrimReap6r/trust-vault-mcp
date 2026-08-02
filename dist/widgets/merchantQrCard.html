@@ -4,6 +4,17 @@
   MCP App UI resource for generate_merchant_qr (registered under
   ui://trust-vault/merchant-qr-card-v2 in registerMerchantQrApp.ts).
 
+  v5: showReceipt() no longer reads row.receipt_url / row.receiptUrl --
+  that column is never populated by the settlement bot (confirmed against
+  a live Supabase row: receipt_url was null even on a successful payout).
+  page.tsx doesn't read that column either -- it builds the receipt link
+  itself from the receipt row's own `id` once the Realtime INSERT fires
+  (`/receipts/${receiptId}`), same pattern the Discord bot's
+  sendReceiptNotification() already uses
+  (`${NEXT_PUBLIC_APP_URL}/receipts/${receiptId}`). We now do the same:
+  generate_merchant_qr's structuredContent must include `publicBaseUrl`
+  (see merchantQr.ts), and we combine that with row.id at receipt time.
+
   CORRECTED: earlier drafts of this file read `window.mcpApp` directly as a
   host-injected global. That was wrong -- there is no such documented
   global in the MCP Apps spec. The real client-side integration is the
@@ -243,11 +254,22 @@
       function showReceipt(row) {
         setStatus("success", "✅ Paid");
         const link = document.getElementById("receiptLink");
-        const receiptUrl = row.receipt_url ?? row.receiptUrl;
-        if (receiptUrl) {
-          link.href = receiptUrl;
+
+        // Build the receipt URL the same way page.tsx and the Discord bot
+        // do -- from the receipt row's own `id`, not a stored receipt_url
+        // column (that column is never written by the settlement bot, so
+        // it's always null; verified against a real successful payout row).
+        const base = window.__qrState?.publicBaseUrl;
+        if (base && row?.id) {
+          link.href = `${base.replace(/\/$/, "")}/receipts/${row.id}`;
           link.hidden = false;
+        } else {
+          console.warn(
+            "Could not build receipt link — missing publicBaseUrl on structuredContent or row.id",
+            { base, rowId: row?.id },
+          );
         }
+
         if (channel) supabase.removeChannel(channel);
       }
 

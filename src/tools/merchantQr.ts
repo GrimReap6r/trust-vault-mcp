@@ -1,5 +1,15 @@
 // src/tools/merchantQr.ts
 //
+// v4 — added `publicBaseUrl` to the return shape so merchantQrCard.html can
+// build the receipt link itself (`${publicBaseUrl}/receipts/${row.id}`).
+// The `receipts` table's `receipt_url` column is never written by the
+// settlement bot (verified null on a real successful payout row), and
+// page.tsx doesn't read that column either — it builds the link the same
+// way, from the receipt row's own `id`. Reusing APP_URL (already loaded
+// below and required to be set) keeps this consistent with
+// sendReceiptNotification()'s Discord receipt link, which uses the same
+// env var.
+//
 // v3 — MCP App version. Behavior is the same as v2 (finds best available
 // BUY order, builds the instant-reserve URL behind a short /qr/:id proxy
 // link for scan reliability — see qrProxy.ts's doc comment, unchanged).
@@ -89,5 +99,11 @@ export async function generateMerchantQr(args: {
     // the merchant page does, instead of polling a tool for a taker wallet.
     supabaseUrl: process.env.SUPABASE_URL,
     supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
+    // NEW (v4) — lets merchantQrCard.html build the receipt link itself
+    // (`${publicBaseUrl}/receipts/${row.id}`) once a receipt row arrives
+    // over Realtime, instead of relying on the never-populated
+    // receipts.receipt_url column. Same env var Discord's receipt link
+    // already uses, so the QR card's link points at the same domain/route.
+    publicBaseUrl: APP_URL,
   };
 }
