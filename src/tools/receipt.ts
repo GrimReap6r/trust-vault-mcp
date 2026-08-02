@@ -78,14 +78,12 @@ function mapRow(row: any): ReceiptRecord {
 export async function findReceipt(args: {
   trustExpressAddress: string;
   takerAddress: string;
-  sinceIso: string;
 }): Promise<ReceiptRecord | null> {
   const { data, error } = await supabase
     .from("receipts")
     .select("*")
     .eq("trust_express_address", args.trustExpressAddress)
     .eq("taker_address", args.takerAddress)
-    .gte("created_at", args.sinceIso)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();

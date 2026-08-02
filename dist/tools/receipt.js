@@ -61,7 +61,6 @@ export async function findReceipt(args) {
         .select("*")
         .eq("trust_express_address", args.trustExpressAddress)
         .eq("taker_address", args.takerAddress)
-        .gte("created_at", args.sinceIso)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();

@@ -39,7 +39,6 @@ export async function waitForPayment(args: {
 }) {
   const program = getProgram();
   const pubkey = new PublicKey(args.orderAddress);
-  const sinceIso = new Date(args.sinceUnixSeconds * 1000).toISOString();
   const deadline = Date.now() + 40_000;
 
   while (Date.now() < deadline) {
@@ -54,7 +53,6 @@ export async function waitForPayment(args: {
       const receipt = await findReceipt({
         trustExpressAddress: args.trustExpressAddress,
         takerAddress: args.takerWallet,
-        sinceIso,
       });
 
       if (receipt) {
