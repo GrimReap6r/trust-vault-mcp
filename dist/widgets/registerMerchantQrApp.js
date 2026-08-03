@@ -43,6 +43,7 @@ import path from "node:path";
 import { registerAppTool, registerAppResource, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
 import { generateMerchantQr } from "../tools/merchantQr.js";
 import { getReceiptByOrder } from "../tools/receiptByOrder.js";
+import { findSignerByReference } from "../solanaPay.js";
 // Bumped from "ui://trust-vault/merchant-qr-card" -- see v3 note above.
 const RESOURCE_URI = "ui://trust-vault/merchant-qr-card-v2";
 // tsc does NOT copy .html files into dist/ automatically -- this path only
@@ -122,11 +123,29 @@ export function registerMerchantQrApp(server) {
     registerAppTool(server, "get_receipt_by_order", {
         title: "Get Receipt By Order",
         description: "Internal: on-demand fallback receipt check for the merchant-qr-card " +
-            "'Check now' button, used only if its Realtime subscription drops.",
-        inputSchema: { orderAddress: z.string(), fiatAmount: z.number(), currency: z.string() },
+            "'Check now' button, used only if its Realtime subscription drops. Pass " +
+            "signerAddress (from resolve_reservation_signer) when known to narrow the " +
+            "match to that specific payer instead of just order + amount.",
+        inputSchema: {
+            orderAddress: z.string(),
+            fiatAmount: z.number(),
+            currency: z.string(),
+            signerAddress: z.string().optional(),
+        },
         _meta: { ui: { resourceUri: RESOURCE_URI, visibility: ["app"] } },
     }, async (args) => {
         const result = await getReceiptByOrder(args);
         return { content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: result };
+    });
+    // --- resolve_reservation_signer: app-only, resolves the actual signer ---
+    registerAppTool(server, "resolve_reservation_signer", {
+        title: "Resolve who signed a reservation",
+        description: "Internal: looks up the actual wallet that signed a reservation transaction, via its " +
+            "Solana Pay reference key. Returns null if the transaction hasn't landed yet.",
+        inputSchema: { reference: z.string() },
+        _meta: { ui: { resourceUri: RESOURCE_URI, visibility: ["app"] } },
+    }, async (args) => {
+        const signer = await findSignerByReference(args.reference);
+        return { content: [{ type: "text", text: JSON.stringify({ signer }) }], structuredContent: { signer } };
     });
 }

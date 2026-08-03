@@ -239,6 +239,22 @@
           : "—";
 
         subscribeToReceipt(data.orderAddress);
+        resolveSigner();
+      }
+
+      async function resolveSigner() {
+        const state = window.__sellState;
+        if (!state?.reference || state.signerAddress) return;
+        try {
+          const response = await app.callServerTool({
+            name: "resolve_reservation_signer",
+            arguments: { reference: state.reference },
+          });
+          const signer = response?.structuredContent?.signer;
+          if (signer) state.signerAddress = signer;
+        } catch (err) {
+          console.warn("resolve_reservation_signer failed", err);
+        }
       }
 
       function showReceipt(row) {
@@ -305,6 +321,7 @@
                 orderAddress: state.orderAddress,
                 fiatAmount: state.fiatAmount,
                 currency: state.currency,
+                signerAddress: state.signerAddress, // may be undefined early on -- fine, falls back to the old loose match
               },
             });
             const receiptCheck = response?.structuredContent;

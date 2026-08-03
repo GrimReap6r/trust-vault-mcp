@@ -28,6 +28,7 @@ import { registerAppTool, registerAppResource, RESOURCE_MIME_TYPE } from "@model
 import { reserveSellOrder } from "../tools/reserveSellOrder.js";
 import { getPaymentLink } from "../tools/paymentLinkLookup.js";
 import { getReceiptByOrder } from "../tools/receiptByOrder.js";
+import { findSignerByReference } from "../solanaPay.js";
 
 const RESOURCE_URI = "ui://trust-vault/reserve-sell-order-card-v1";
 const WIDGET_HTML_PATH = path.join(import.meta.dirname, "reserveSellOrderCard.html");
@@ -129,13 +130,37 @@ export function registerReserveSellOrderApp(server: McpServer) {
       description:
         "Internal: on-demand fallback receipt check for the reservation card's 'Check now' " +
         "button, used only if its Realtime subscription drops. Same trust boundary as " +
-        "get_receipt_by_order: filtered on order + fiat amount + currency, no taker wallet needed.",
-      inputSchema: { orderAddress: z.string(), fiatAmount: z.number(), currency: z.string() },
+        "get_receipt_by_order: filtered on order + fiat amount + currency, optionally narrowed to " +
+        "signerAddress (from resolve_reservation_signer) when known.",
+      inputSchema: {
+        orderAddress: z.string(),
+        fiatAmount: z.number(),
+        currency: z.string(),
+        signerAddress: z.string().optional(),
+      },
       _meta: { ui: { resourceUri: RESOURCE_URI, visibility: ["app"] } },
     },
     async (args) => {
       const result = await getReceiptByOrder(args);
       return { content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: result };
+    }
+  );
+
+  // --- resolve_reservation_signer: app-only, resolves the actual signer ---
+  registerAppTool(
+    server,
+    "resolve_reservation_signer",
+    {
+      title: "Resolve who signed a reservation",
+      description:
+        "Internal: looks up the actual wallet that signed a reservation transaction, via its " +
+        "Solana Pay reference key. Returns null if the transaction hasn't landed yet.",
+      inputSchema: { reference: z.string() },
+      _meta: { ui: { resourceUri: RESOURCE_URI, visibility: ["app"] } },
+    },
+    async (args) => {
+      const signer = await findSignerByReference(args.reference);
+      return { content: [{ type: "text", text: JSON.stringify({ signer }) }], structuredContent: { signer } };
     }
   );
 }

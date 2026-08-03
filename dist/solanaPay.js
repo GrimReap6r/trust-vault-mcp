@@ -1,6 +1,7 @@
 // src/solanaPay.ts
-import { Keypair } from "@solana/web3.js";
+import { Keypair, PublicKey } from "@solana/web3.js";
 import QRCode from "qrcode";
+import { getConnection } from "./program.js";
 const RAW_BASE_URL = process.env.PUBLIC_BASE_URL;
 if (!RAW_BASE_URL) {
     throw new Error("PUBLIC_BASE_URL is not set. Set it to this server's bare origin, e.g. " +
@@ -19,6 +20,22 @@ const BASE_URL = RAW_BASE_URL.replace(/\/+$/, ""); // also strip any trailing sl
  * Pay spec (§4.2 of the transaction-request spec) — never used to sign. */
 export function generateReference() {
     return Keypair.generate().publicKey;
+}
+/**
+ * Resolves the actual signer wallet from a Solana Pay reference key, once
+ * a transaction carrying it has landed. The reference is attached as a
+ * non-signing account on the transaction (see server.ts's POST
+ * /pay/:reference and route.ts's optional `reference` param) specifically
+ * so this lookup works -- per the Solana Pay spec, this is the intended
+ * mechanism, not a workaround.
+ */
+export async function findSignerByReference(reference) {
+    const connection = getConnection();
+    const sigs = await connection.getSignaturesForAddress(new PublicKey(reference), { limit: 1 });
+    if (sigs.length === 0)
+        return null;
+    const tx = await connection.getTransaction(sigs[0].signature, { maxSupportedTransactionVersion: 0 });
+    return tx?.transaction.message.staticAccountKeys[0]?.toString() ?? null;
 }
 // NOTE: this stays "/pay/", matching server.ts's /pay/:reference route for
 // prepare_buy_order's reference-based signing flow. Don't confuse this with

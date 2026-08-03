@@ -64,7 +64,7 @@ export async function reserveSellOrder(args: { orderAddress: string; amount: num
 
   const decimals = await getDecimalsForMint(order.mint);
   const amountRaw = BigInt(Math.round(args.amount * 10 ** decimals));
-  const fiatAmount = args.amount * order.pricePerToken; // same open scale caveat as elsewhere (fetchOrders.ts FLAG)
+  const fiatAmount = args.amount * order.pricePerToken;
 
   const reference = generateReference();
   const nowSeconds = Math.floor(Date.now() / 1000);

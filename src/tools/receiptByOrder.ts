@@ -15,6 +15,13 @@
 // returns the most recent matching receipt, not necessarily the one tied
 // to this specific QR/customer. See waitForPayment.ts's takerWallet-based
 // check for the stronger guarantee when you do have that wallet in hand.
+//
+// UPDATE: callers that know the actual signer (resolved via a Solana Pay
+// reference -- see solanaPay.ts's findSignerByReference) can now pass
+// signerAddress to narrow the match to that specific payer, closing most
+// of the collision gap described above. Omitting it falls back to the
+// original loose match, so this stays backward-compatible for callers
+// that don't have a signer yet.
 import { supabase } from "../supabase.js";
 import type { ReceiptRecord } from "./receipt.js";
 
@@ -22,17 +29,23 @@ export async function getReceiptByOrder(args: {
   orderAddress: string;
   fiatAmount: number;
   currency: string;
+  signerAddress?: string; // NEW — when known (via findSignerByReference), narrows the
+                           // match to this specific payer, closing the collision gap
+                           // this function's own doc comment used to just document.
 }): Promise<{ found: boolean; receipt?: ReceiptRecord }> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("receipts")
     .select("*")
     .eq("trust_express_address", args.orderAddress)
     .eq("status", "success")
     .eq("fiat_amount", args.fiatAmount)
-    .eq("currency", args.currency)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .eq("currency", args.currency);
+
+  if (args.signerAddress) {
+    query = query.eq("taker_address", args.signerAddress);
+  }
+
+  const { data, error } = await query.order("created_at", { ascending: false }).limit(1).maybeSingle();
 
   if (error) throw new Error(`Supabase receipts query failed: ${error.message}`);
   if (!data) return { found: false };

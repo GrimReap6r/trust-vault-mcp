@@ -1,6 +1,6 @@
 // src/tools/reserveBuyOrder.ts
 import { fetchAllOrders } from "./fetchOrders.js";
-import { qrDataUri } from "../solanaPay.js";
+import { qrDataUri, generateReference } from "../solanaPay.js";
 import { registerShortLink, SHORT_LINK_TTL_MS } from "../qrProxy.js";
 /**
  * reserve_buy_order -- a token holder selling into an open BUY order.
@@ -50,12 +50,14 @@ export async function reserveBuyOrder(args) {
     if (args.amount > order.amount) {
         throw new Error(`Requested ${args.amount} exceeds the ${order.amount} available on this order.`);
     }
-    const fiatAmount = args.amount * order.pricePerToken; // same open scale caveat as fetchOrders.ts's FLAG
+    const fiatAmount = args.amount * order.pricePerToken;
+    const reference = generateReference();
     const apiUrl = new URL("/api/solana-pay/instant-reserve", APP_URL);
     apiUrl.searchParams.set("trustExpressAddress", args.orderAddress);
     apiUrl.searchParams.set("tokenAmount", args.amount.toString());
     apiUrl.searchParams.set("fiatAmount", fiatAmount.toString());
     apiUrl.searchParams.set("currency", order.currency);
+    apiUrl.searchParams.set("reference", reference.toString());
     apiUrl.searchParams.set("payoutDetails", JSON.stringify({
         type: "bank_transfer",
         account_number: args.payoutDetails.accountNumber,
@@ -79,6 +81,9 @@ export async function reserveBuyOrder(args) {
         currency: order.currency,
         payoutDetails: args.payoutDetails,
         transactionRequestUrl: solanaPayUrl,
+        // NEW — see merchantQr.ts's matching field: lets resolve_reservation_signer
+        // recover the actual signer wallet once the transaction lands.
+        reference: reference.toString(),
         checkoutPageUrl: `${process.env.PUBLIC_BASE_URL}/checkout/${id}`,
         qrCodeDataUri: await qrDataUri(solanaPayUrl),
         expiresInSeconds: Math.floor(SHORT_LINK_TTL_MS / 1000),

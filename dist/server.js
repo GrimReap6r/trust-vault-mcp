@@ -105,9 +105,11 @@ function buildServer() {
         description: "Fetches the live on-chain status of a specific Trust Vault order by its address (PDA), " +
             "including available amount and any active reservations. Reservation status labels " +
             "are pending / completed / expired_refunded (confirmed against submit_validator_vote.rs " +
-            "and finalize_expired_vote) -- note a REJECTED reservation is indistinguishable from a " +
-            "COMPLETED one purely from this on-chain data once it's removed; use get_receipt or " +
-            "wait_for_payment for a real success signal, not this alone.",
+            "and finalize_expired_vote) -- a REJECTED reservation is still indistinguishable from a " +
+            "COMPLETED one purely from this on-chain data once it's removed, so use get_receipt, " +
+            "find_receipt, or wait_for_payment for a real success signal, not this alone. Where a " +
+            "Solana Pay reference was used for the reservation, those checks can now be narrowed to " +
+            "the actual signer wallet (see resolve_reservation_signer) instead of just order + amount.",
         inputSchema: {
             orderAddress: z.string().describe("Full base58 PDA of the TrustExpress order"),
         },
@@ -203,7 +205,10 @@ function buildServer() {
     // the same reserved_amounts.remove(idx) as the success branch). These two
     // close that gap: a receipts row is the actual off-chain-verified success
     // signal (receipt.ts's module doc), and wait_for_payment is the bounded
-    // poll that watches for one to appear.
+    // poll that watches for one to appear. receiptByOrder.ts's own
+    // signerAddress param (resolved via the reference mechanism -- see
+    // solanaPay.ts's findSignerByReference) now closes most of what
+    // remained: multi-taker collisions on a shared order.
     server.registerTool("get_receipt", {
         title: "Get a payment receipt",
         description: "Looks up a Trust Vault payment receipt by its payout reference (the IP-<timestamp>-" +
@@ -212,7 +217,9 @@ function buildServer() {
             "succeeded -- it is never written on rejection or timeout -- so finding one here is a " +
             "reliable success signal, unlike an absent on-chain reservation alone. Returns null if " +
             "no receipt exists yet (which can mean still pending, rejected, or expired -- use " +
-            "get_order_status or wait_for_payment to tell those apart).",
+            "get_order_status or wait_for_payment to tell those apart). Where a Solana Pay " +
+            "reference was used, resolve_reservation_signer can pin the actual signer wallet first, " +
+            "closing the multi-taker collision gap the order-based lookups otherwise have.",
         inputSchema: {
             payoutReference: z.string().describe("The payout_reference emitted at reservation time, e.g. IP-1785657017-7mCgjRcy"),
         },
@@ -238,7 +245,8 @@ function buildServer() {
             "confirmation instead of asking again later. Distinguishes three outcomes: 'success' " +
             "(a matching receipts row was found -- the only trustworthy success signal), 'unknown' " +
             "(the reservation is no longer active on-chain but no receipt appeared -- could be " +
-            "rejected or refunded, check your dashboard/bank app before treating this as paid), or " +
+            "rejected or refunded; check your dashboard/bank app, or resolve_reservation_signer if a " +
+            "Solana Pay reference was used, before treating this as paid), or " +
             "'pending' (still active after 40s -- call again, nothing was lost).",
         inputSchema: {
             orderAddress: z.string().describe("Full base58 PDA of the TrustExpress order"),
@@ -364,6 +372,19 @@ app.post("/pay/:reference", async (req, res) => {
         // provider."
         return res.status(501).json({ error: `Unknown intent kind` });
     }
+    // Attach the Solana Pay reference as a non-signer, non-writable account on
+    // the transaction's first (only) instruction. This is what lets
+    // findSignerByReference (solanaPay.ts) later look the transaction up by
+    // this key and recover the actual wallet that signed it -- per the
+    // Solana Pay spec, this is the intended mechanism, not a workaround.
+    // Covers all three intent kinds built above (create_buy_order,
+    // create_sell_order, reserve_sell_order), since each produces a
+    // single-instruction transaction via program.methods(...).transaction().
+    transaction.instructions[0].keys.push({
+        pubkey: new PublicKey(req.params.reference),
+        isSigner: false,
+        isWritable: false,
+    });
     transaction.feePayer = walletPubkey;
     const { blockhash } = await getConnection().getLatestBlockhash();
     transaction.recentBlockhash = blockhash;

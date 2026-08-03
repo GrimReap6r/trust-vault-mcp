@@ -38,12 +38,6 @@ export async function fetchAllOrders() {
             mint,
             currency: decodeCurrency(acc.currency),
             amount: toDisplayAmount(acc.amount, decimals),
-            // FLAG (carried over, still unresolved): price_per_token is
-            // documented as "fiat per whole token (raw fiat units)" but the
-            // scale (whole naira vs kobo, etc.) isn't stated. Passing through
-            // RAW here rather than guessing a divisor -- confirm against the
-            // client's BuyOrderCard/SellOrderCard display before trusting this
-            // for anything money-critical.
             pricePerToken: Number(acc.pricePerToken),
             reservationsUsed: acc.reservedAmounts.length,
             reservationsMax: 10,

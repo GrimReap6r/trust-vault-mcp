@@ -19,7 +19,7 @@
 // downloadable image separately. qrCodeDataUri is embedded inline (already
 // existed on this tool, just wasn't previously surfaced to a UI).
 import { fetchAllOrders } from "./fetchOrders.js";
-import { qrDataUri } from "../solanaPay.js";
+import { qrDataUri, generateReference } from "../solanaPay.js";
 import { registerShortLink } from "../qrProxy.js";
 export async function generateMerchantQr(args) {
     const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
@@ -38,11 +38,13 @@ export async function generateMerchantQr(args) {
     }
     const best = candidates.reduce((a, b) => (b.pricePerToken > a.pricePerToken ? b : a));
     const tokenAmount = args.fiatAmount / best.pricePerToken; // display hint only — POST route derives its own raw amount
+    const reference = generateReference();
     const apiUrl = new URL("/api/solana-pay/instant-reserve", APP_URL);
     apiUrl.searchParams.set("trustExpressAddress", best.orderAddress);
     apiUrl.searchParams.set("tokenAmount", tokenAmount.toString());
     apiUrl.searchParams.set("fiatAmount", args.fiatAmount.toString());
     apiUrl.searchParams.set("currency", args.currency.toUpperCase());
+    apiUrl.searchParams.set("reference", reference.toString());
     apiUrl.searchParams.set("payoutDetails", JSON.stringify({
         type: "bank_transfer",
         account_number: args.payoutDetails.accountNumber,
@@ -65,6 +67,11 @@ export async function generateMerchantQr(args) {
         currency: args.currency.toUpperCase(),
         payoutDetails: args.payoutDetails, // echoed back so the card can render it directly
         transactionRequestUrl: solanaPayUrl,
+        // NEW — the Solana Pay reference attached to this transaction. Lets
+        // resolve_reservation_signer (see registerMerchantQrApp.ts) look up the
+        // actual wallet that scans and signs, once it has, without asking the
+        // customer for their address up front.
+        reference: reference.toString(),
         // NEW — what "Copy pay link" should actually copy. A real https://
         // page, not the raw solana: URI (see checkoutPage.ts for why).
         checkoutPageUrl: `${process.env.PUBLIC_BASE_URL}/checkout/${id}`,

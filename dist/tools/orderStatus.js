@@ -17,8 +17,6 @@ import { getDecimalsForMint } from "./tokenRegistry.js";
  * pending/payment_sent/completed/cancelled/disputed mapping is still
  * unconfirmed. Surfacing the raw numeric code rather than guessing a label
  * -- see decodeReservationStatus in helpers.ts for the full rationale.
- * TODO: replace with a real mapping once the owning instruction file
- * (reserve.rs / confirm_payment.rs / dispute.rs or similar) is available.
  */
 export async function getOrderStatus(args) {
     const program = getProgram();
@@ -35,12 +33,12 @@ export async function getOrderStatus(args) {
         // NEVER "total deposited" -- see program docs §2.2. BUY: committed minus
         // active reservations. SELL: remaining in escrow.
         availableAmount: toDisplayAmount(acc.amount, decimals),
-        pricePerToken: Number(acc.pricePerToken), // see FLAG in fetchOrders.ts re: scale
+        pricePerToken: Number(acc.pricePerToken),
         reservations: acc.reservedAmounts.map((r) => ({
             taker: r.taker.toString(),
             amount: toDisplayAmount(r.amount, decimals),
             fiatAmount: Number(r.fiatAmount),
-            status: decodeReservationStatus(r.status), // { code, label: "unmapped_status_N" } until confirmed
+            status: decodeReservationStatus(r.status),
             timestamp: new Date(Number(r.timestamp) * 1000).toISOString(),
             paymentMode: r.paymentMode === 0 ? "payment_link" : "direct_transfer",
         })),
