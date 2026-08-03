@@ -3,7 +3,8 @@ import { SystemProgram } from "@solana/web3.js";
 import { fetchAllOrders } from "./fetchOrders.js";
 import { getDecimalsForMint } from "./tokenRegistry.js";
 import { deriveGlobalStatePda } from "./prepareOrder.js";
-import { generateReference, transactionRequestUrl, qrDataUri } from "../solanaPay.js";
+import { generateReference, transactionRequestHttpUrl, qrDataUri } from "../solanaPay.js";
+import { registerShortLink } from "../qrProxy.js";
 import { storeIntent } from "../paymentIntents.js";
 export function buildInstantSellReserveAccounts(args) {
     return {
@@ -68,7 +69,14 @@ export async function reserveSellOrder(args) {
         amountRaw: amountRaw.toString(),
         payoutReference,
     });
-    const url = transactionRequestUrl(reference);
+    // Same short-link + checkout-page pattern generate_merchant_qr and
+    // reserve_buy_order use -- gives a real https:// page to copy/paste
+    // instead of a bare solana: URI, which does nothing pasted outside a
+    // wallet app or QR scanner (see checkoutPage.ts's doc comment).
+    const httpUrl = transactionRequestHttpUrl(reference);
+    const id = registerShortLink(httpUrl);
+    const shortUrl = `${process.env.PUBLIC_BASE_URL}/qr/${id}`;
+    const url = `solana:${encodeURIComponent(shortUrl)}`;
     return {
         payoutReference,
         orderAddress: args.orderAddress,
@@ -76,6 +84,7 @@ export async function reserveSellOrder(args) {
         fiatAmount,
         currency: order.currency,
         transactionRequestUrl: url,
+        checkoutPageUrl: `${process.env.PUBLIC_BASE_URL}/checkout/${id}`,
         qrCodeDataUri: await qrDataUri(url),
         expiresInSeconds: 300,
         instructions: "Scan this QR (or open the link) with Phantom or Backpack to lock in this reservation -- " +

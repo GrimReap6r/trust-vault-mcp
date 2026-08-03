@@ -345,7 +345,10 @@
       document
         .getElementById("copyLinkBtn")
         .addEventListener("click", async () => {
-          const url = window.__sellState?.transactionRequestUrl;
+          // Was: window.__sellState?.transactionRequestUrl -- a bare solana:
+          // URI, does nothing useful pasted outside a wallet app. Now: the
+          // real https:// checkout page from checkoutPage.ts.
+          const url = window.__sellState?.checkoutPageUrl;
           if (!url) return;
           await navigator.clipboard.writeText(url);
           const btn = document.getElementById("copyLinkBtn");

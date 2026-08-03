@@ -461,7 +461,10 @@
       document
         .getElementById("copyLinkBtn")
         .addEventListener("click", async () => {
-          const url = window.__reserveState?.transactionRequestUrl;
+          // Was: window.__reserveState?.transactionRequestUrl -- a bare solana:
+          // URI that does nothing useful pasted outside a wallet app or QR
+          // scanner. Now: the real https:// checkout page.
+          const url = window.__reserveState?.checkoutPageUrl;
           if (!url) return;
           await navigator.clipboard.writeText(url);
           const btn = document.getElementById("copyLinkBtn");

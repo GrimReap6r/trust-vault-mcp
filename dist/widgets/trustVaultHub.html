@@ -894,7 +894,11 @@
       document
         .getElementById("copyLinkBtn")
         .addEventListener("click", async () => {
-          const url = reserveState?.transactionRequestUrl;
+          // Was: reserveState?.transactionRequestUrl -- a bare solana: URI,
+          // does nothing useful pasted outside a wallet app. Now: the real
+          // https:// checkout page (both reserve_sell_order and
+          // reserve_buy_order return this now).
+          const url = reserveState?.checkoutPageUrl;
           if (!url) return;
           await navigator.clipboard.writeText(url);
           const btn = document.getElementById("copyLinkBtn");

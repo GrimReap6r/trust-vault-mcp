@@ -22,11 +22,25 @@ export function generateReference() {
 }
 // NOTE: this stays "/pay/", matching server.ts's /pay/:reference route for
 // prepare_buy_order's reference-based signing flow. Don't confuse this with
-// /qr/:id in qrProxy.ts -- that's a separate short-link proxy used only by
-// generate_merchant_qr, and points at a different route entirely.
+// /qr/:id in qrProxy.ts -- that's a separate short-link proxy, used by
+// generate_merchant_qr AND (as of this export) reserve_sell_order, and
+// points at a different route entirely.
+/** The raw https:// transaction-request endpoint, unwrapped. Exported
+ * separately from transactionRequestUrl() below so callers can register it
+ * with qrProxy.registerShortLink() and get a real checkoutPageUrl out of
+ * it -- the same "Copy pay link" needs a page that does something when
+ * pasted outside a wallet app (see checkoutPage.ts's doc comment: a bare
+ * solana: URI pasted in a browser does nothing, no registered protocol
+ * handler). Before this existed, reserve_sell_order's "Copy reservation
+ * link" copied transactionRequestUrl() directly -- the raw solana: URI --
+ * which is exactly the confusing double-encoded string a person would see
+ * if they pasted it anywhere but a wallet's own QR scanner.
+ */
+export function transactionRequestHttpUrl(reference) {
+    return `${BASE_URL}/pay/${reference.toString()}`;
+}
 export function transactionRequestUrl(reference) {
-    const httpUrl = `${BASE_URL}/pay/${reference.toString()}`;
-    return `solana:${encodeURIComponent(httpUrl)}`;
+    return `solana:${encodeURIComponent(transactionRequestHttpUrl(reference))}`;
 }
 export async function qrDataUri(uri) {
     // width/errorCorrectionLevel tuned down from the old 400px/default-M
