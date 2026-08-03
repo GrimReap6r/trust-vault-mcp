@@ -247,13 +247,13 @@
         if (!state?.reference || state.signerAddress) return;
         try {
           const response = await app.callServerTool({
-            name: "resolve_reservation_signer",
+            name: "resolve_reserve_buy_order_signer",
             arguments: { reference: state.reference },
           });
           const signer = response?.structuredContent?.signer;
           if (signer) state.signerAddress = signer;
         } catch (err) {
-          console.warn("resolve_reservation_signer failed", err);
+          console.warn("resolve_reserve_buy_order_signer failed", err);
         }
       }
 

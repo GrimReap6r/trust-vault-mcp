@@ -131,7 +131,7 @@ export function registerReserveSellOrderApp(server: McpServer) {
         "Internal: on-demand fallback receipt check for the reservation card's 'Check now' " +
         "button, used only if its Realtime subscription drops. Same trust boundary as " +
         "get_receipt_by_order: filtered on order + fiat amount + currency, optionally narrowed to " +
-        "signerAddress (from resolve_reservation_signer) when known.",
+        "signerAddress (from resolve_reserve_sell_order_signer) when known.",
       inputSchema: {
         orderAddress: z.string(),
         fiatAmount: z.number(),
@@ -146,10 +146,10 @@ export function registerReserveSellOrderApp(server: McpServer) {
     }
   );
 
-  // --- resolve_reservation_signer: app-only, resolves the actual signer ---
+  // --- resolve_reserve_sell_order_signer: app-only, resolves the actual signer ---
   registerAppTool(
     server,
-    "resolve_reservation_signer",
+    "resolve_reserve_sell_order_signer",
     {
       title: "Resolve who signed a reservation",
       description:

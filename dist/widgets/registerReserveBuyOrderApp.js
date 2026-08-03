@@ -85,7 +85,7 @@ export function registerReserveBuyOrderApp(server) {
         description: "Internal: on-demand fallback receipt check for the reserve-buy-order card's 'Check now' " +
             "button, used only if its Realtime subscription drops. Same trust boundary as " +
             "get_receipt_by_order: filtered on order + fiat amount + currency, optionally narrowed to " +
-            "signerAddress (from resolve_reservation_signer) when known.",
+            "signerAddress (from resolve_reserve_buy_order_signer) when known.",
         inputSchema: {
             orderAddress: z.string(),
             fiatAmount: z.number(),
@@ -97,7 +97,7 @@ export function registerReserveBuyOrderApp(server) {
         const result = await getReceiptByOrder(args);
         return { content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: result };
     });
-    registerAppTool(server, "resolve_reservation_signer", {
+    registerAppTool(server, "resolve_reserve_buy_order_signer", {
         title: "Resolve who signed a reservation",
         description: "Internal: looks up the actual wallet that signed a reservation transaction, via its " +
             "Solana Pay reference key. Returns null if the transaction hasn't landed yet.",
