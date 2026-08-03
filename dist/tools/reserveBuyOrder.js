@@ -1,61 +1,45 @@
 // src/tools/reserveBuyOrder.ts
-import { PublicKey, SystemProgram } from "@solana/web3.js";
-import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { fetchAllOrders } from "./fetchOrders.js";
-import { getDecimalsForMint, getTokenProgramForMint } from "./tokenRegistry.js";
-import { deriveGlobalStatePda } from "./prepareOrder.js";
-import { generateReference, transactionRequestUrl, qrDataUri } from "../solanaPay.js";
-import { storeIntent } from "../paymentIntents.js";
+import { qrDataUri } from "../solanaPay.js";
+import { registerShortLink, SHORT_LINK_TTL_MS } from "../qrProxy.js";
 /**
- * Accounts for instant_reserve -- confirmed against the same IDL entry
- * server.ts's old stub comment already cites (trust_express, maker, taker,
- * mint, taker_ata, trust_express_ata, global_state, token_program,
- * associated_token_program, system_program). Same shape as
- * buildCreateSellOrderAccounts in prepareOrder.ts: taker's ATA needs
- * resolving because real tokens move out of the taker's wallet into escrow
- * on signing, same as a sell-order creation does for its maker.
- */
-export async function buildInstantReserveAccounts(args) {
-    const mintPubkey = new PublicKey(args.mint);
-    const tokenProgram = await getTokenProgramForMint(args.mint);
-    return {
-        trustExpress: args.trustExpress,
-        maker: args.maker,
-        taker: args.taker,
-        mint: mintPubkey,
-        takerAta: getAssociatedTokenAddressSync(mintPubkey, args.taker, false, tokenProgram),
-        trustExpressAta: getAssociatedTokenAddressSync(mintPubkey, args.trustExpress, true, tokenProgram),
-        globalState: deriveGlobalStatePda(),
-        systemProgram: SystemProgram.programId,
-        tokenProgram,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-    };
-}
-/**
- * reserve_buy_order -- mirror image of reserve_sell_order: a token HOLDER
- * selling into an open BUY order (an LP's standing offer to buy tokens for
- * fiat). Same "no wallet up front" shape as reserve_sell_order -- the
- * taker's wallet identifies itself at scan time via POST /pay/:reference's
- * req.body.account, same pattern create_sell_order already uses.
+ * reserve_buy_order -- a token holder selling into an open BUY order.
  *
- * UNLIKE reserve_sell_order, this needs one real piece of information up
- * front that a wallet scan can't supply: payoutDetails, the SELLER's own
- * bank account -- on instant_reserve's success path it's the taker (seller)
- * who receives fiat, not the LP. That's actual content the person has to
- * hand over (same category as prepare_sell_order's paymentInstructions, not
- * an identity revealed on scan), so it stays a required chat argument.
+ * CORRECTED (v2): the first version of this tool built the instant_reserve
+ * transaction itself, server-side, inside this MCP server's own POST
+ * /pay/:reference handler via program.methods.instantReserve(...). That
+ * failed in-wallet with "Invalid data from the payment provider" -- the
+ * arg order/names for instant_reserve were flagged as unconfirmed at the
+ * time (unlike instant_sell_reserve, which WAS cross-checked directly
+ * against submit_validator_vote.rs and does work).
  *
- * Also unlike reserve_sell_order, there is no separate "payment link" step
- * afterward -- signing IS the sale. The LP's linked processor pays the
- * bank account out automatically once validators confirm, so the card only
- * has two stages (pending -> success), not three.
+ * generate_merchant_qr already calls this exact same on-chain instruction
+ * successfully -- but it does so by pointing the QR at the Next.js app's
+ * own /api/solana-pay/instant-reserve route, not by building the
+ * transaction in this server. That route is the one place instant_reserve
+ * is actually implemented correctly. The only thing that differs between
+ * the merchant flow and this one is WHO generates the QR and whose bank
+ * account ends up in payoutDetails (the merchant's vs. the seller's own)
+ * -- the API call itself is identical, so this now delegates to it the
+ * same way merchantQr.ts does, via the same short-link QR proxy, instead
+ * of re-implementing the instruction a second time.
  *
- * payout_reference uses the "IP-" prefix (Instant Pay), matching the format
- * get_receipt's own description already documents
- * ("IP-<timestamp>-<takerprefix>") -- reserve_sell_order's "IS-" (Instant
- * Sell) is the other half of that same naming split.
+ * One consequence: unlike reserve_sell_order, there's no payoutReference
+ * returned here -- it's generated on-chain inside instant_reserve's own
+ * handler once the wallet signs (same reason paymentLinkLookup.ts/
+ * receipt.ts note that payout_reference "isn't known to this server until
+ * after the customer's wallet generates it on-chain"). Success detection
+ * for this flow was already built around orderAddress + fiatAmount +
+ * currency (getReceiptByOrder), not payoutReference, so nothing downstream
+ * needed to change.
  */
 export async function reserveBuyOrder(args) {
+    const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
+    if (!APP_URL) {
+        throw new Error("NEXT_PUBLIC_APP_URL is not set on this MCP server. reserve_buy_order builds a URL " +
+            "pointing at that app's /api/solana-pay/instant-reserve route -- the same one " +
+            "generate_merchant_qr already uses successfully.");
+    }
     const orders = await fetchAllOrders();
     const order = orders.find((o) => o.orderAddress === args.orderAddress);
     if (!order)
@@ -66,45 +50,43 @@ export async function reserveBuyOrder(args) {
     if (args.amount > order.amount) {
         throw new Error(`Requested ${args.amount} exceeds the ${order.amount} available on this order.`);
     }
-    const decimals = await getDecimalsForMint(order.mint);
-    const amountRaw = BigInt(Math.round(args.amount * 10 ** decimals));
     const fiatAmount = args.amount * order.pricePerToken; // same open scale caveat as fetchOrders.ts's FLAG
-    const reference = generateReference();
-    const nowSeconds = Math.floor(Date.now() / 1000);
-    const payoutReference = `IP-${nowSeconds}-${reference.toString().slice(0, 8)}`;
-    storeIntent(reference.toString(), {
-        kind: "reserve_against_buy_order",
-        orderAddress: args.orderAddress,
-        maker: order.maker,
-        mint: order.mint,
-        amountRaw: amountRaw.toString(),
-        fiatAmount: fiatAmount.toString(),
-        currency: order.currency,
-        payoutDetails: JSON.stringify({
-            type: "bank_transfer",
-            account_number: args.payoutDetails.accountNumber,
-            bank_code: args.payoutDetails.bankCode,
-            bank_name: args.payoutDetails.bankName,
-            beneficiary_name: args.payoutDetails.beneficiaryName,
-        }),
-        payoutReference,
-    });
-    const url = transactionRequestUrl(reference);
+    const apiUrl = new URL("/api/solana-pay/instant-reserve", APP_URL);
+    apiUrl.searchParams.set("trustExpressAddress", args.orderAddress);
+    apiUrl.searchParams.set("tokenAmount", args.amount.toString());
+    apiUrl.searchParams.set("fiatAmount", fiatAmount.toString());
+    apiUrl.searchParams.set("currency", order.currency);
+    apiUrl.searchParams.set("payoutDetails", JSON.stringify({
+        type: "bank_transfer",
+        account_number: args.payoutDetails.accountNumber,
+        bank_code: args.payoutDetails.bankCode,
+        bank_name: args.payoutDetails.bankName,
+        beneficiary_name: args.payoutDetails.beneficiaryName,
+    }));
+    const rpcUrl = process.env.SOLANA_RPC_URL ?? "";
+    const cluster = rpcUrl.includes("devnet") ? "devnet" : rpcUrl.includes("mainnet") ? "mainnet-beta" : "devnet";
+    apiUrl.searchParams.set("cluster", cluster);
+    // Same short-link QR proxy generate_merchant_qr uses -- keeps the QR
+    // itself small regardless of how much the real request needs, and gives
+    // us a checkoutPageUrl fallback for desktop (see checkoutPage.ts).
+    const id = registerShortLink(apiUrl.toString());
+    const shortUrl = `${process.env.PUBLIC_BASE_URL}/qr/${id}`;
+    const solanaPayUrl = `solana:${encodeURIComponent(shortUrl)}`;
     return {
-        payoutReference,
         orderAddress: args.orderAddress,
         tokenAmount: args.amount,
         fiatAmount,
         currency: order.currency,
         payoutDetails: args.payoutDetails,
-        transactionRequestUrl: url,
-        qrCodeDataUri: await qrDataUri(url),
-        expiresInSeconds: 300,
+        transactionRequestUrl: solanaPayUrl,
+        checkoutPageUrl: `${process.env.PUBLIC_BASE_URL}/checkout/${id}`,
+        qrCodeDataUri: await qrDataUri(solanaPayUrl),
+        expiresInSeconds: Math.floor(SHORT_LINK_TTL_MS / 1000),
         instructions: `Scan this QR (or open the link) with Phantom or Backpack to sign -- this moves ${args.amount} ` +
             "tokens into escrow immediately on approval. Fiat pays out automatically to the bank account " +
             "you provided, no separate payment step needed.",
         supabaseUrl: process.env.SUPABASE_URL,
         supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
-        publicBaseUrl: process.env.NEXT_PUBLIC_APP_URL,
+        publicBaseUrl: APP_URL,
     };
 }

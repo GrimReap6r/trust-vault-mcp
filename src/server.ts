@@ -19,7 +19,6 @@ import { prepareBuyOrder, prepareSellOrder, buildCreateBuyOrderAccounts, buildCr
 import { getReceiptByReference, findReceipt } from "./tools/receipt.js";
 import { waitForPayment } from "./tools/waitForPayment.js";
 import { buildInstantSellReserveAccounts } from "./tools/reserveSellOrder.js";
-import { buildInstantReserveAccounts } from "./tools/reserveBuyOrder.js";
 import { getPaymentLink } from "./tools/paymentLinkLookup.js";
 import { waitForPaymentLink } from "./tools/waitForPaymentLink.js";
 import { getIntent } from "./paymentIntents.js";
@@ -484,38 +483,14 @@ app.post("/pay/:reference", async (req, res) => {
       )
       .accounts(accounts as any)
       .transaction();
-  } else if (intent.kind === "reserve_against_buy_order") {
-    // reserve_buy_order's flow: a token holder selling into an open BUY
-    // order. generate_merchant_qr never reaches this branch -- it routes
-    // through the existing Next.js instant-reserve API instead -- so this
-    // only fires for the chat-driven reserve_buy_order tool.
-    const accounts = await buildInstantReserveAccounts({
-      trustExpress: new PublicKey(intent.orderAddress),
-      maker: new PublicKey(intent.maker),
-      taker: walletPubkey,
-      mint: intent.mint,
-    });
-
-    // CAUTION -- arg order/names below are NOT yet confirmed against the
-    // IDL the way instantSellReserve's branch above is (that one was
-    // cross-checked against submit_validator_vote.rs directly). Mirrors
-    // instant_sell_reserve's shape (amount, payment_mode, payout_details,
-    // payout_reference) since that's the only confirmed sibling
-    // instruction, but instant_reserve may take a different arg order or
-    // an extra fee-related param. Confirm against trust_express.json's
-    // instructions[name="instant_reserve"].args before trusting this in
-    // production -- same caution prepareOrder.ts already flags for
-    // create_express_buy_order/create_express_sell.
-    transaction = await program.methods
-      .instantReserve(
-        new BN(intent.amountRaw),
-        0, // payment_mode -- UNCONFIRMED for this instruction, see caution above
-        intent.payoutDetails,
-        intent.payoutReference
-      )
-      .accounts(accounts as any)
-      .transaction();
   } else {
+    // reserve_buy_order (selling into a BUY order) never reaches this
+    // handler at all anymore -- it delegates straight to the Next.js app's
+    // /api/solana-pay/instant-reserve route via the qrProxy short-link,
+    // same as generate_merchant_qr. See tools/reserveBuyOrder.ts's doc
+    // comment for why: building instant_reserve here used unconfirmed IDL
+    // args and failed in-wallet with "Invalid data from the payment
+    // provider."
     return res.status(501).json({ error: `Unknown intent kind` });
   }
 

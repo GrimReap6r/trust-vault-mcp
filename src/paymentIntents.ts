@@ -29,21 +29,15 @@ export type PendingIntent =
       paymentInstructions: string;
       credentialId: string; // no longer optional -- gated by findActiveCredential now
     }
-  | {
-      kind: "reserve_against_buy_order";
-      orderAddress: string; // the TrustExpress PDA being reserved against
-      maker: string; // the LP who created the buy order -- needed for instant_reserve's accounts
-      mint: string; // needed to derive taker's ATA + the escrow ATA at POST time
-      // NOTE: no `taker` field, same lesson as reserve_sell_order's dropped
-      // `buyer` -- the wallet identifies itself at POST /pay/:reference time
-      // via req.body.account, so there's nothing useful to store here ahead
-      // of time.
-      amountRaw: string;
-      fiatAmount: string;
-      currency: string;
-      payoutDetails: string; // the SELLER's own bank info -- they receive the fiat on this path
-      payoutReference: string; // "IP-..." -- needed so get_receipt/find_receipt can look this reservation up later
-    }
+  // NOTE: reserve_against_buy_order used to be a kind here. Removed --
+  // reserve_buy_order (tools/reserveBuyOrder.ts) no longer builds that
+  // transaction in this server at all. It delegates to the Next.js app's
+  // own /api/solana-pay/instant-reserve route via the qrProxy short-link
+  // mechanism, same as generate_merchant_qr already does -- so there's no
+  // intent to store for this flow anymore. See reserveBuyOrder.ts's doc
+  // comment: the version that built the transaction here used unconfirmed
+  // instant_reserve args and failed in-wallet with "Invalid data from the
+  // payment provider."
   | {
       kind: "reserve_sell_order";
       trustExpress: string;
