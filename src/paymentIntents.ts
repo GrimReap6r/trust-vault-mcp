@@ -32,11 +32,17 @@ export type PendingIntent =
   | {
       kind: "reserve_against_buy_order";
       orderAddress: string; // the TrustExpress PDA being reserved against
-      taker: string; // filled in once the wallet POSTs
+      maker: string; // the LP who created the buy order -- needed for instant_reserve's accounts
+      mint: string; // needed to derive taker's ATA + the escrow ATA at POST time
+      // NOTE: no `taker` field, same lesson as reserve_sell_order's dropped
+      // `buyer` -- the wallet identifies itself at POST /pay/:reference time
+      // via req.body.account, so there's nothing useful to store here ahead
+      // of time.
       amountRaw: string;
       fiatAmount: string;
       currency: string;
-      payoutDetails: string; // merchant's bank info, for the QR-pay case
+      payoutDetails: string; // the SELLER's own bank info -- they receive the fiat on this path
+      payoutReference: string; // "IP-..." -- needed so get_receipt/find_receipt can look this reservation up later
     }
   | {
       kind: "reserve_sell_order";

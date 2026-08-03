@@ -19,6 +19,7 @@ import { prepareBuyOrder, prepareSellOrder, buildCreateBuyOrderAccounts, buildCr
 import { getReceiptByReference, findReceipt } from "./tools/receipt.js";
 import { waitForPayment } from "./tools/waitForPayment.js";
 import { buildInstantSellReserveAccounts } from "./tools/reserveSellOrder.js";
+import { buildInstantReserveAccounts } from "./tools/reserveBuyOrder.js";
 import { getPaymentLink } from "./tools/paymentLinkLookup.js";
 import { waitForPaymentLink } from "./tools/waitForPaymentLink.js";
 import { getIntent } from "./paymentIntents.js";
@@ -26,6 +27,8 @@ import { getProgram, getConnection } from "./program.js";
 import { proxyQr } from "./qrProxy.js";
 import { registerMerchantQrApp } from "./widgets/registerMerchantQrApp.js";
 import { registerReserveSellOrderApp } from "./widgets/registerReserveSellOrderApp.js";
+import { registerReserveBuyOrderApp } from "./widgets/registerReserveBuyOrderApp.js";
+import { registerTrustVaultHubApp } from "./widgets/registerTrustVaultHubApp.js";
 import { renderCheckoutPage } from "./checkoutPage.js";
 
 const { BN } = anchorPkg;
@@ -354,6 +357,17 @@ function buildServer(): McpServer {
   // merchant side. See src/widgets/registerReserveSellOrderApp.ts.
   registerReserveSellOrderApp(server);
 
+  // ── MCP App: reserve buy order card (reserve_buy_order -- a token holder
+  // selling into an open BUY order). Two-stage instead of three: no
+  // separate payment-link step, signing IS the sale. See
+  // src/widgets/registerReserveBuyOrderApp.ts.
+  registerReserveBuyOrderApp(server);
+
+  // ── MCP App: Trust Vault hub (open_trust_vault) -- browsing entry point,
+  // sits alongside the two specific reservation cards rather than
+  // replacing them. See src/widgets/registerTrustVaultHubApp.ts.
+  registerTrustVaultHubApp(server);
+
   return server;
 }
 
@@ -470,15 +484,39 @@ app.post("/pay/:reference", async (req, res) => {
       )
       .accounts(accounts as any)
       .transaction();
+  } else if (intent.kind === "reserve_against_buy_order") {
+    // reserve_buy_order's flow: a token holder selling into an open BUY
+    // order. generate_merchant_qr never reaches this branch -- it routes
+    // through the existing Next.js instant-reserve API instead -- so this
+    // only fires for the chat-driven reserve_buy_order tool.
+    const accounts = await buildInstantReserveAccounts({
+      trustExpress: new PublicKey(intent.orderAddress),
+      maker: new PublicKey(intent.maker),
+      taker: walletPubkey,
+      mint: intent.mint,
+    });
+
+    // CAUTION -- arg order/names below are NOT yet confirmed against the
+    // IDL the way instantSellReserve's branch above is (that one was
+    // cross-checked against submit_validator_vote.rs directly). Mirrors
+    // instant_sell_reserve's shape (amount, payment_mode, payout_details,
+    // payout_reference) since that's the only confirmed sibling
+    // instruction, but instant_reserve may take a different arg order or
+    // an extra fee-related param. Confirm against trust_express.json's
+    // instructions[name="instant_reserve"].args before trusting this in
+    // production -- same caution prepareOrder.ts already flags for
+    // create_express_buy_order/create_express_sell.
+    transaction = await program.methods
+      .instantReserve(
+        new BN(intent.amountRaw),
+        0, // payment_mode -- UNCONFIRMED for this instruction, see caution above
+        intent.payoutDetails,
+        intent.payoutReference
+      )
+      .accounts(accounts as any)
+      .transaction();
   } else {
-    // reserve_against_buy_order path shouldn't reach here in practice --
-    // generate_merchant_qr no longer stores this intent kind, it routes
-    // straight to the existing instant-reserve endpoint instead. The IDL's
-    // instant_reserve accounts ARE now confirmed too (trust_express,
-    // maker, taker, mint, taker_ata, trust_express_ata, global_state,
-    // token_program, associated_token_program, system_program) if this
-    // ever needs wiring up for real.
-    return res.status(501).json({ error: "instant_reserve builder not wired for this route" });
+    return res.status(501).json({ error: `Unknown intent kind` });
   }
 
   transaction.feePayer = walletPubkey;

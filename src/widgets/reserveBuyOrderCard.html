@@ -1,0 +1,360 @@
+<!--
+  reserveBuyOrderCard.html
+  ==========================
+  MCP App UI resource for reserve_buy_order (registered under
+  ui://trust-vault/reserve-buy-order-card-v1 in
+  registerReserveBuyOrderApp.ts).
+
+  Closest relative is merchantQrCard.html, not reserveSellOrderCard.html:
+  this is a two-stage card (pending -> success), not three, because signing
+  the reservation IS the sale here -- there's no separate "now go pay the
+  fiat amount" step the way reserve_sell_order has. Subscribes to the same
+  Realtime receipts push the merchant card and reserve-sell-order card both
+  use, filtered on order + fiat amount + currency (no taker wallet needed,
+  same trust boundary as receiptByOrder.ts throughout this codebase).
+-->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: transparent;
+        color: #f2f2f2;
+      }
+      .card {
+        max-width: 380px;
+        margin: 0 auto;
+        background: #17181c;
+        border: 1px solid #2a2b31;
+        border-radius: 16px;
+        padding: 20px;
+      }
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      .brand {
+        font-weight: 700;
+        font-size: 15px;
+        letter-spacing: 0.2px;
+      }
+      .status-pill {
+        font-size: 12px;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: #3a2f0f;
+        color: #f5c542;
+      }
+      .status-pill[data-state="success"] {
+        background: #0f3a1c;
+        color: #4ade80;
+      }
+      .qr-wrap {
+        display: flex;
+        justify-content: center;
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      .qr-wrap img {
+        width: 220px;
+        height: 220px;
+        display: block;
+      }
+      .amount {
+        text-align: center;
+        font-size: 32px;
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+      .subamount {
+        text-align: center;
+        font-size: 13px;
+        color: #9a9ba3;
+        margin-bottom: 18px;
+      }
+      .details {
+        border-top: 1px solid #2a2b31;
+        padding-top: 14px;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        row-gap: 8px;
+        column-gap: 16px;
+        font-size: 13px;
+      }
+      .details dt {
+        color: #9a9ba3;
+      }
+      .details dd {
+        margin: 0;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      .hint {
+        margin-top: 12px;
+        font-size: 12px;
+        color: #9a9ba3;
+        text-align: center;
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      button {
+        flex: 1;
+        border: 1px solid #2a2b31;
+        background: #1f2025;
+        color: #f2f2f2;
+        padding: 10px 12px;
+        border-radius: 10px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #26272d;
+      }
+      .receipt-link {
+        display: block;
+        width: 100%;
+        text-align: center;
+        margin-top: 14px;
+        font-size: 12px;
+        color: #7aa2f7;
+        text-decoration: none;
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+      }
+      .receipt-link:hover {
+        text-decoration: underline;
+        background: none;
+      }
+      .receipt-link[hidden] {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="card-header">
+        <span class="brand">Trust Vault</span>
+        <span class="status-pill" id="statusPill" data-state="pending"
+          >Scan to sell</span
+        >
+      </div>
+
+      <div class="qr-wrap">
+        <img id="qrImage" alt="Scan to sell" />
+      </div>
+
+      <div class="amount" id="tokenLabel">—</div>
+      <div class="subamount" id="fiatLabel">—</div>
+
+      <dl class="details">
+        <dt>Payout to</dt>
+        <dd id="beneficiary">—</dd>
+        <dt>Bank</dt>
+        <dd id="bank">—</dd>
+        <dt>Order</dt>
+        <dd id="order">—</dd>
+      </dl>
+
+      <p class="hint" id="hintText">
+        Scan with Phantom or Backpack to sign. This moves your tokens into
+        escrow immediately — fiat pays out to the account above automatically,
+        no extra step.
+      </p>
+
+      <div class="actions">
+        <button id="copyLinkBtn" type="button">Copy reservation link</button>
+        <button id="refreshBtn" type="button">Check now</button>
+      </div>
+
+      <button class="receipt-link" id="receiptLink" type="button" hidden>
+        View full receipt →
+      </button>
+    </div>
+
+    <script type="module">
+      import { App } from "https://cdn.jsdelivr.net/npm/@modelcontextprotocol/ext-apps/+esm";
+
+      const app = new App({
+        name: "trust-vault-reserve-buy-order-card",
+        version: "1.0.0",
+      });
+
+      let supabase = null;
+      let channel = null;
+
+      async function ensureSupabase() {
+        if (supabase) return supabase;
+        const { createClient } =
+          await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
+        const state = window.__sellState;
+        if (state?.supabaseUrl && state?.supabaseAnonKey) {
+          supabase = createClient(state.supabaseUrl, state.supabaseAnonKey);
+        }
+        return supabase;
+      }
+
+      function setStatus(state, label) {
+        const pill = document.getElementById("statusPill");
+        pill.dataset.state = state;
+        pill.textContent = label;
+      }
+
+      function render(data) {
+        if (!data) return;
+        window.__sellState = data;
+
+        document.getElementById("qrImage").src = data.qrCodeDataUri ?? "";
+        document.getElementById("tokenLabel").textContent = data.tokenAmount
+          ? `${data.tokenAmount} token${data.tokenAmount === 1 ? "" : "s"}`
+          : "—";
+        document.getElementById("fiatLabel").textContent =
+          data.fiatAmount && data.currency
+            ? `≈ ${data.currency} ${data.fiatAmount}`
+            : "—";
+        document.getElementById("beneficiary").textContent =
+          data.payoutDetails?.beneficiaryName ?? "—";
+        document.getElementById("bank").textContent =
+          data.payoutDetails?.bankName ?? "—";
+        document.getElementById("order").textContent = data.orderAddress
+          ? `${data.orderAddress.slice(0, 4)}…${data.orderAddress.slice(-4)}`
+          : "—";
+
+        subscribeToReceipt(data.orderAddress);
+      }
+
+      function showReceipt(row) {
+        setStatus("success", "✅ Paid out");
+        document.getElementById("hintText").textContent =
+          "Sale confirmed. Fiat has been sent to your bank account.";
+
+        const link = document.getElementById("receiptLink");
+        const base = window.__sellState?.publicBaseUrl;
+        if (base && row?.id) {
+          link.dataset.receiptUrl = `${base.replace(/\/$/, "")}/receipts/${row.id}`;
+          link.hidden = false;
+        } else {
+          console.warn(
+            "Could not build receipt link — missing publicBaseUrl or row.id",
+            { base, rowId: row?.id },
+          );
+        }
+
+        if (channel) supabase.removeChannel(channel);
+      }
+
+      async function subscribeToReceipt(trustExpressAddress) {
+        if (!trustExpressAddress || channel) return;
+        const client = await ensureSupabase();
+        if (!client) return;
+
+        channel = client
+          .channel(`sell-receipt-insert-${trustExpressAddress}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "INSERT",
+              schema: "public",
+              table: "receipts",
+              filter: `trust_express_address=eq.${trustExpressAddress}`,
+            },
+            (payload) => {
+              const state = window.__sellState;
+              const amountMatches =
+                Number(payload.new?.fiat_amount) ===
+                  Number(state?.fiatAmount) &&
+                payload.new?.currency === state?.currency;
+              if (!amountMatches) return;
+              showReceipt(payload.new);
+            },
+          )
+          .subscribe();
+      }
+
+      app.ontoolresult = (result) => {
+        render(result.structuredContent);
+      };
+
+      document
+        .getElementById("refreshBtn")
+        .addEventListener("click", async () => {
+          const state = window.__sellState;
+          if (!state?.orderAddress) return;
+          try {
+            const response = await app.callServerTool({
+              name: "get_reserve_buy_order_receipt",
+              arguments: {
+                orderAddress: state.orderAddress,
+                fiatAmount: state.fiatAmount,
+                currency: state.currency,
+              },
+            });
+            const receiptCheck = response?.structuredContent;
+            if (receiptCheck?.found) showReceipt(receiptCheck.receipt);
+          } catch (err) {
+            console.warn("manual receipt check failed", err);
+          }
+        });
+
+      document
+        .getElementById("receiptLink")
+        .addEventListener("click", async () => {
+          const btn = document.getElementById("receiptLink");
+          const url = btn.dataset.receiptUrl;
+          if (!url) return;
+
+          if (!app.getHostCapabilities()?.openLinks) {
+            await navigator.clipboard.writeText(url);
+            btn.textContent = "Host can't open links — link copied instead";
+            return;
+          }
+          const original = btn.textContent;
+          try {
+            const { isError } = await app.openLink({ url });
+            if (isError) {
+              await navigator.clipboard.writeText(url);
+              btn.textContent = "Couldn't open — link copied instead";
+              setTimeout(() => (btn.textContent = original), 2000);
+            }
+          } catch (err) {
+            console.warn("openLink failed", err);
+            await navigator.clipboard.writeText(url);
+            btn.textContent = "Couldn't open — link copied instead";
+            setTimeout(() => (btn.textContent = original), 2000);
+          }
+        });
+
+      document
+        .getElementById("copyLinkBtn")
+        .addEventListener("click", async () => {
+          const url = window.__sellState?.transactionRequestUrl;
+          if (!url) return;
+          await navigator.clipboard.writeText(url);
+          const btn = document.getElementById("copyLinkBtn");
+          const original = btn.textContent;
+          btn.textContent = "Copied!";
+          setTimeout(() => (btn.textContent = original), 1200);
+        });
+
+      await app.connect();
+    </script>
+  </body>
+</html>
