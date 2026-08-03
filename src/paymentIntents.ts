@@ -19,6 +19,17 @@ export type PendingIntent =
       credentialId: string | null;
     }
   | {
+      kind: "create_sell_order";
+      seller: string; // base58 pubkey — the wallet that will sign
+      seed: string; // stringified u64
+      mint: string;
+      amountRaw: string; // stringified u64, raw token units -- the deposit amount
+      pricePerToken: string; // stringified u64, raw fiat units
+      currency: string;
+      paymentInstructions: string;
+      credentialId: string; // no longer optional -- gated by findActiveCredential now
+    }
+  | {
       kind: "reserve_against_buy_order";
       orderAddress: string; // the TrustExpress PDA being reserved against
       taker: string; // filled in once the wallet POSTs
@@ -26,6 +37,14 @@ export type PendingIntent =
       fiatAmount: string;
       currency: string;
       payoutDetails: string; // merchant's bank info, for the QR-pay case
+    }
+  | {
+      kind: "reserve_sell_order";
+      trustExpress: string;
+      maker: string;
+      buyer: string;
+      amountRaw: string;
+      payoutReference: string;
     };
 
 const intents = new Map<string, PendingIntent>();

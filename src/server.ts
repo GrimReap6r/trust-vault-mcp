@@ -15,9 +15,12 @@ import { getOrderStatus } from "./tools/orderStatus.js";
 import { getPlatformStats, getFeeStructure } from "./tools/platformStats.js";
 import { getProtocolOverview, getCurrenciesAndProcessors } from "./tools/staticInfo.js";
 import { SUPPORTED_CURRENCIES } from "./constants.js";
-import { prepareBuyOrder, buildCreateBuyOrderAccounts } from "./tools/prepareOrder.js";
+import { prepareBuyOrder, prepareSellOrder, buildCreateBuyOrderAccounts, buildCreateSellOrderAccounts } from "./tools/prepareOrder.js";
 import { getReceiptByReference, findReceipt } from "./tools/receipt.js";
 import { waitForPayment } from "./tools/waitForPayment.js";
+import { reserveSellOrder, buildInstantSellReserveAccounts } from "./tools/reserveSellOrder.js";
+import { getPaymentLink } from "./tools/paymentLinkLookup.js";
+import { waitForPaymentLink } from "./tools/waitForPaymentLink.js";
 import { getIntent } from "./paymentIntents.js";
 import { getProgram, getConnection } from "./program.js";
 import { proxyQr } from "./qrProxy.js";
@@ -181,10 +184,10 @@ function buildServer(): McpServer {
     {
       title: "Prepare a new BUY order (LP)",
       description:
-        "For an LP creating a new express buy order. Validates inputs, derives the order's " +
-        "future TrustExpress PDA, and returns a Solana Pay QR/URL -- scanning it with Phantom " +
-        "or Backpack lets the LP review and sign the create_express_buy_order transaction. " +
-        "Does not move funds itself.",
+        "For an LP creating a new express buy order. Validates inputs, checks for an existing " +
+        "saved payment processor credential (blocks with guidance if none exists -- a " +
+        "credential-less order can never settle a trade), derives the order's future " +
+        "TrustExpress PDA, and returns a Solana Pay QR/URL. Does not move funds itself.",
       inputSchema: {
         buyerWallet: z.string().describe("LP's base58 wallet pubkey"),
         mint: z.string().describe("Full token mint address"),
@@ -192,10 +195,84 @@ function buildServer(): McpServer {
         pricePerToken: z.number().describe("Plain whole-currency units per whole token, e.g. 1650 = ₦1650/token"),
         currency: z.enum(SUPPORTED_CURRENCIES),
         paymentInstructions: z.string().max(100),
-        credentialId: z.string().optional(),
+        // credentialId intentionally NOT accepted here -- prepareBuyOrder
+        // resolves it server-side via findActiveCredential. Accepting it
+        // from the caller would let anyone attach a wallet's saved
+        // credential to an order that wallet never asked to create.
       },
     },
-    async (args) => imageResult(await prepareBuyOrder(args))
+    async (args) => {
+      const result = await prepareBuyOrder(args);
+      // Credential-gated failure has no qrCodeDataUri to render as an
+      // image -- imageResult requires one and will throw on undefined, so
+      // route the blocked case through textResult instead.
+      return result.blocked ? textResult(result) : imageResult(result);
+    }
+  );
+
+  server.registerTool(
+    "prepare_sell_order",
+    {
+      title: "Prepare a new SELL order (LP)",
+      description:
+        "For an LP creating a new express sell order. Same credential gating as " +
+        "prepare_buy_order, but more important here: create_express_sell deposits real " +
+        "tokens into escrow immediately on signing, so a credential-less sell order would " +
+        "lock funds with no way to ever settle a trade against them.",
+      inputSchema: {
+        sellerWallet: z.string().describe("LP's base58 wallet pubkey"),
+        mint: z.string().describe("Full token mint address"),
+        amount: z.number().describe("Amount in display units to deposit, e.g. 500"),
+        pricePerToken: z.number().describe("Plain whole-currency units per whole token"),
+        currency: z.enum(SUPPORTED_CURRENCIES),
+        paymentInstructions: z.string().max(100),
+      },
+    },
+    async (args) => {
+      const result = await prepareSellOrder(args);
+      return result.blocked ? textResult(result) : imageResult(result);
+    }
+  );
+
+  server.registerTool(
+    "reserve_sell_order",
+    {
+      title: "Reserve against a SELL order (buy tokens)",
+      description:
+        "For a buyer purchasing tokens from an open SELL order. Locks in a reservation against " +
+        "the specified order and returns a Solana Pay QR/URL to sign. No fiat payment happens " +
+        "here -- after signing, use wait_for_payment_link to get the actual checkout link.",
+      inputSchema: {
+        buyerWallet: z.string().describe("Buyer's base58 wallet pubkey"),
+        orderAddress: z.string().describe("Full base58 PDA of the SELL order, from list_open_orders"),
+        amount: z.number().describe("Amount of tokens to buy, in display units"),
+      },
+    },
+    async (args) => imageResult(await reserveSellOrder(args))
+  );
+
+  server.registerTool(
+    "get_payment_link",
+    {
+      title: "Get a payment link",
+      description:
+        "Looks up the hosted checkout link for a sell-order reservation by its payout " +
+        "reference. Returns null if not generated yet.",
+      inputSchema: { payoutReference: z.string() },
+    },
+    async (args) => textResult(await getPaymentLink(args.payoutReference))
+  );
+
+  server.registerTool(
+    "wait_for_payment_link",
+    {
+      title: "Wait for a payment link",
+      description:
+        "Bounded poll (~30s) for a payment link to become available after reserve_sell_order. " +
+        "Call this right after the reservation transaction confirms.",
+      inputSchema: { payoutReference: z.string() },
+    },
+    async (args) => textResult(await waitForPaymentLink(args))
   );
 
   // ── generate_merchant_qr now lives in registerMerchantQrApp -------------
@@ -354,6 +431,46 @@ app.post("/pay/:reference", async (req, res) => {
         Array.from(Buffer.from(intent.currency)),
         intent.paymentInstructions,
         intent.credentialId
+      )
+      .accounts(accounts as any)
+      .transaction();
+  } else if (intent.kind === "create_sell_order") {
+    // Accounts confirmed against trust_express.json's
+    // instructions[name="create_express_sell"].accounts -- see
+    // buildCreateSellOrderAccounts in tools/prepareOrder.ts for the source.
+    // Unlike create_buy_order, this moves real tokens at creation, so both
+    // the seller's ATA and the escrow ATA must be resolved up front.
+    const accounts = await buildCreateSellOrderAccounts({
+      seller: walletPubkey,
+      mint: intent.mint,
+      seed: BigInt(intent.seed),
+    });
+
+    transaction = await program.methods
+      .createExpressSell(
+        new BN(intent.seed),
+        new BN(intent.amountRaw),
+        new BN(intent.pricePerToken),
+        Array.from(Buffer.from(intent.currency)),
+        intent.paymentInstructions,
+        intent.credentialId
+      )
+      .accounts(accounts as any)
+      .transaction();
+  } else if (intent.kind === "reserve_sell_order") {
+    const accounts = buildInstantSellReserveAccounts({
+      trustExpress: new PublicKey(intent.trustExpress),
+      maker: new PublicKey(intent.maker),
+      buyer: walletPubkey,
+    });
+
+    transaction = await program.methods
+      .instantSellReserve(
+        new BN(intent.amountRaw),
+        0, // payment_mode: 0 = payment link
+        null, // payout_details (IDL name — Rust's local var is "buyer_payout_details",
+              // same field) -- not needed for payment_mode 0
+        intent.payoutReference
       )
       .accounts(accounts as any)
       .transaction();
