@@ -17,13 +17,14 @@ import { SUPPORTED_CURRENCIES } from "./constants.js";
 import { prepareBuyOrder, prepareSellOrder, buildCreateBuyOrderAccounts, buildCreateSellOrderAccounts } from "./tools/prepareOrder.js";
 import { getReceiptByReference, findReceipt } from "./tools/receipt.js";
 import { waitForPayment } from "./tools/waitForPayment.js";
-import { reserveSellOrder, buildInstantSellReserveAccounts } from "./tools/reserveSellOrder.js";
+import { buildInstantSellReserveAccounts } from "./tools/reserveSellOrder.js";
 import { getPaymentLink } from "./tools/paymentLinkLookup.js";
 import { waitForPaymentLink } from "./tools/waitForPaymentLink.js";
 import { getIntent } from "./paymentIntents.js";
 import { getProgram, getConnection } from "./program.js";
 import { proxyQr } from "./qrProxy.js";
 import { registerMerchantQrApp } from "./widgets/registerMerchantQrApp.js";
+import { registerReserveSellOrderApp } from "./widgets/registerReserveSellOrderApp.js";
 import { renderCheckoutPage } from "./checkoutPage.js";
 const { BN } = anchorPkg;
 function textResult(data) {
@@ -168,17 +169,12 @@ function buildServer() {
         const result = await prepareSellOrder(args);
         return result.blocked ? textResult(result) : imageResult(result);
     });
-    server.registerTool("reserve_sell_order", {
-        title: "Reserve against a SELL order (buy tokens)",
-        description: "For a buyer purchasing tokens from an open SELL order. Locks in a reservation against " +
-            "the specified order and returns a Solana Pay QR/URL to sign. No fiat payment happens " +
-            "here -- after signing, use wait_for_payment_link to get the actual checkout link.",
-        inputSchema: {
-            buyerWallet: z.string().describe("Buyer's base58 wallet pubkey"),
-            orderAddress: z.string().describe("Full base58 PDA of the SELL order, from list_open_orders"),
-            amount: z.number().describe("Amount of tokens to buy, in display units"),
-        },
-    }, async (args) => imageResult(await reserveSellOrder(args)));
+    // ── reserve_sell_order now lives in registerReserveSellOrderApp --------
+    // Moved out of this plain server.registerTool block, same move
+    // generate_merchant_qr already made: it's now an MCP App tool (renders a
+    // live reservation card), registered via registerReserveSellOrderApp(server)
+    // below buildServer(). No buyerWallet argument anymore -- see
+    // tools/reserveSellOrder.ts's doc comment for why that was dead weight.
     server.registerTool("get_payment_link", {
         title: "Get a payment link",
         description: "Looks up the hosted checkout link for a sell-order reservation by its payout " +
@@ -253,6 +249,10 @@ function buildServer() {
     // Renders inline as a live status card instead of raw JSON/base64 -- see
     // src/widgets/registerMerchantQrApp.ts for the full rationale.
     registerMerchantQrApp(server);
+    // ── MCP App: reserve sell order card (reserve_sell_order + payment link +
+    // receipt polling) -- same live-card treatment, buyer side instead of
+    // merchant side. See src/widgets/registerReserveSellOrderApp.ts.
+    registerReserveSellOrderApp(server);
     return server;
 }
 // --- Streamable HTTP transport wiring ---

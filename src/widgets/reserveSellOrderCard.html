@@ -1,0 +1,476 @@
+<!--
+  reserveSellOrderCard.html
+  ===========================
+  MCP App UI resource for reserve_sell_order (registered under
+  ui://trust-vault/reserve-sell-order-card-v1 in
+  registerReserveSellOrderApp.ts).
+
+  Adapted directly from merchantQrCard.html. Same structural pattern
+  (App SDK, Supabase Realtime for the receipt push, clipboard permission,
+  openLink fallback) -- the difference is this card has THREE stages
+  instead of one, because reserving a sell order is a two-step wallet
+  action (sign the reservation, then separately pay the fiat amount) where
+  the merchant QR flow only has one (scan and pay):
+
+    pending   -- QR shown, waiting for a wallet to scan + sign. Polls
+                 get_reservation_payment_link every ~4s (no push channel
+                 exists for "did the wallet sign yet" the way receipts.
+                 INSERT gives us a push for payment).
+    awaiting  -- reservation confirmed, payment link is ready. Shows a
+                 "Open payment link" action and starts the SAME Realtime
+                 receipts subscription merchantQrCard.html uses, filtered
+                 on trust_express_address + fiat amount + currency --
+                 deliberately no taker wallet needed, matching
+                 receiptByOrder.ts's trust boundary.
+    success   -- a receipts row landed. Show "Paid" + View receipt link,
+                 built from publicBaseUrl + row.id, same as the merchant
+                 card (receipt_url column is never populated by the
+                 settlement bot).
+-->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: transparent;
+        color: #f2f2f2;
+      }
+      .card {
+        max-width: 380px;
+        margin: 0 auto;
+        background: #17181c;
+        border: 1px solid #2a2b31;
+        border-radius: 16px;
+        padding: 20px;
+      }
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      .brand {
+        font-weight: 700;
+        font-size: 15px;
+        letter-spacing: 0.2px;
+      }
+      .status-pill {
+        font-size: 12px;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: #3a2f0f;
+        color: #f5c542;
+      }
+      .status-pill[data-state="awaiting"] {
+        background: #12283a;
+        color: #5cb8f5;
+      }
+      .status-pill[data-state="success"] {
+        background: #0f3a1c;
+        color: #4ade80;
+      }
+      .status-pill[data-state="unknown"] {
+        background: #3a1414;
+        color: #f87171;
+      }
+      .qr-wrap {
+        display: flex;
+        justify-content: center;
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      .qr-wrap img {
+        width: 220px;
+        height: 220px;
+        display: block;
+      }
+      .amount {
+        text-align: center;
+        font-size: 32px;
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+      .subamount {
+        text-align: center;
+        font-size: 13px;
+        color: #9a9ba3;
+        margin-bottom: 18px;
+      }
+      .details {
+        border-top: 1px solid #2a2b31;
+        padding-top: 14px;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        row-gap: 8px;
+        column-gap: 16px;
+        font-size: 13px;
+      }
+      .details dt {
+        color: #9a9ba3;
+      }
+      .details dd {
+        margin: 0;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      .hint {
+        margin-top: 12px;
+        font-size: 12px;
+        color: #9a9ba3;
+        text-align: center;
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      button {
+        flex: 1;
+        border: 1px solid #2a2b31;
+        background: #1f2025;
+        color: #f2f2f2;
+        padding: 10px 12px;
+        border-radius: 10px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #26272d;
+      }
+      button.primary {
+        background: #1c3550;
+        border-color: #2c5a86;
+      }
+      button.primary:hover {
+        background: #22405f;
+      }
+      button[hidden] {
+        display: none;
+      }
+      .receipt-link {
+        display: block;
+        width: 100%;
+        text-align: center;
+        margin-top: 14px;
+        font-size: 12px;
+        color: #7aa2f7;
+        text-decoration: none;
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+      }
+      .receipt-link:hover {
+        text-decoration: underline;
+        background: none;
+      }
+      .receipt-link[hidden] {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="card-header">
+        <span class="brand">Trust Vault</span>
+        <span class="status-pill" id="statusPill" data-state="pending"
+          >Scan to reserve</span
+        >
+      </div>
+
+      <div class="qr-wrap">
+        <img id="qrImage" alt="Scan to reserve" />
+      </div>
+
+      <div class="amount" id="tokenLabel">—</div>
+      <div class="subamount" id="fiatLabel">—</div>
+
+      <dl class="details">
+        <dt>Order</dt>
+        <dd id="order">—</dd>
+        <dt>Reference</dt>
+        <dd id="reference">—</dd>
+      </dl>
+
+      <p class="hint" id="hintText">
+        Scan with Phantom or Backpack to lock in this reservation. Your wallet
+        identifies itself the moment you sign — nothing to type in first.
+      </p>
+
+      <div class="actions">
+        <button id="copyLinkBtn" type="button">Copy reservation link</button>
+        <button id="payNowBtn" class="primary" type="button" hidden>
+          Open payment link
+        </button>
+        <button id="refreshBtn" type="button">Check now</button>
+      </div>
+
+      <button class="receipt-link" id="receiptLink" type="button" hidden>
+        View full receipt →
+      </button>
+    </div>
+
+    <script type="module">
+      import { App } from "https://cdn.jsdelivr.net/npm/@modelcontextprotocol/ext-apps/+esm";
+
+      const app = new App({
+        name: "trust-vault-reserve-sell-order-card",
+        version: "1.0.0",
+      });
+
+      let supabase = null;
+      let channel = null;
+      let pollTimer = null;
+
+      async function ensureSupabase() {
+        if (supabase) return supabase;
+        const { createClient } =
+          await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
+        const state = window.__reserveState;
+        if (state?.supabaseUrl && state?.supabaseAnonKey) {
+          supabase = createClient(state.supabaseUrl, state.supabaseAnonKey);
+        }
+        return supabase;
+      }
+
+      function setStatus(state, label) {
+        const pill = document.getElementById("statusPill");
+        pill.dataset.state = state;
+        pill.textContent = label;
+      }
+
+      function render(data) {
+        if (!data) return;
+
+        window.__reserveState = data;
+
+        document.getElementById("qrImage").src = data.qrCodeDataUri ?? "";
+        document.getElementById("tokenLabel").textContent = data.tokenAmount
+          ? `${data.tokenAmount} token${data.tokenAmount === 1 ? "" : "s"}`
+          : "—";
+        document.getElementById("fiatLabel").textContent =
+          data.fiatAmount && data.currency
+            ? `≈ ${data.currency} ${data.fiatAmount}`
+            : "—";
+        document.getElementById("order").textContent = data.orderAddress
+          ? `${data.orderAddress.slice(0, 4)}…${data.orderAddress.slice(-4)}`
+          : "—";
+        document.getElementById("reference").textContent =
+          data.payoutReference ?? "—";
+
+        startPollingForPaymentLink();
+      }
+
+      function startPollingForPaymentLink() {
+        if (pollTimer) return; // already polling
+        pollTimer = setInterval(checkPaymentLink, 4000);
+        checkPaymentLink(); // fire immediately too, don't wait 4s for the first check
+      }
+
+      async function checkPaymentLink() {
+        const state = window.__reserveState;
+        if (!state?.payoutReference || state.paymentLinkUrl) return;
+
+        try {
+          const response = await app.callServerTool({
+            name: "get_reservation_payment_link",
+            arguments: { payoutReference: state.payoutReference },
+          });
+          const result = response?.structuredContent;
+          if (result?.found) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+            onPaymentLinkReady(result.linkUrl);
+          }
+        } catch (err) {
+          console.warn("payment link poll failed", err);
+        }
+      }
+
+      function onPaymentLinkReady(linkUrl) {
+        window.__reserveState.paymentLinkUrl = linkUrl;
+        setStatus("awaiting", "Reservation confirmed — tap to pay");
+        document.getElementById("hintText").textContent =
+          "Your reservation is locked in. Open the payment link to send the fiat amount.";
+        const payBtn = document.getElementById("payNowBtn");
+        payBtn.hidden = false;
+        payBtn.dataset.url = linkUrl;
+
+        subscribeToReceipt(window.__reserveState.orderAddress);
+      }
+
+      function showReceipt(row) {
+        if (pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+        setStatus("success", "✅ Paid");
+        document.getElementById("hintText").textContent =
+          "Payment confirmed. Tokens are on their way to your wallet.";
+
+        const link = document.getElementById("receiptLink");
+        const base = window.__reserveState?.publicBaseUrl;
+        if (base && row?.id) {
+          link.dataset.receiptUrl = `${base.replace(/\/$/, "")}/receipts/${row.id}`;
+          link.hidden = false;
+        } else {
+          console.warn(
+            "Could not build receipt link — missing publicBaseUrl on structuredContent or row.id",
+            {
+              base,
+              rowId: row?.id,
+            },
+          );
+        }
+
+        if (channel) supabase.removeChannel(channel);
+      }
+
+      async function subscribeToReceipt(trustExpressAddress) {
+        if (!trustExpressAddress || channel) return;
+
+        const client = await ensureSupabase();
+        if (!client) return;
+
+        channel = client
+          .channel(`reserve-receipt-insert-${trustExpressAddress}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "INSERT",
+              schema: "public",
+              table: "receipts",
+              filter: `trust_express_address=eq.${trustExpressAddress}`,
+            },
+            (payload) => {
+              const state = window.__reserveState;
+              const amountMatches =
+                Number(payload.new?.fiat_amount) ===
+                  Number(state?.fiatAmount) &&
+                payload.new?.currency === state?.currency;
+              if (!amountMatches) return;
+              showReceipt(payload.new);
+            },
+          )
+          .subscribe();
+      }
+
+      app.ontoolresult = (result) => {
+        render(result.structuredContent);
+      };
+
+      document
+        .getElementById("refreshBtn")
+        .addEventListener("click", async () => {
+          const state = window.__reserveState;
+          if (!state?.orderAddress) return;
+
+          // If we don't have a payment link yet, "check now" means check for
+          // that. Once we do, it means check for the receipt instead.
+          if (!state.paymentLinkUrl) {
+            await checkPaymentLink();
+            return;
+          }
+
+          try {
+            const response = await app.callServerTool({
+              name: "get_reservation_receipt",
+              arguments: {
+                orderAddress: state.orderAddress,
+                fiatAmount: state.fiatAmount,
+                currency: state.currency,
+              },
+            });
+            const receiptCheck = response?.structuredContent;
+            if (receiptCheck?.found) showReceipt(receiptCheck.receipt);
+          } catch (err) {
+            console.warn("manual receipt check failed", err);
+          }
+        });
+
+      document
+        .getElementById("payNowBtn")
+        .addEventListener("click", async () => {
+          const btn = document.getElementById("payNowBtn");
+          const url = btn.dataset.url;
+          if (!url) return;
+
+          if (!app.getHostCapabilities()?.openLinks) {
+            await navigator.clipboard.writeText(url);
+            btn.textContent = "Host can't open links — link copied instead";
+            return;
+          }
+
+          const original = btn.textContent;
+          try {
+            const { isError } = await app.openLink({ url });
+            if (isError) {
+              await navigator.clipboard.writeText(url);
+              btn.textContent = "Couldn't open — link copied instead";
+              setTimeout(() => (btn.textContent = original), 2000);
+            }
+          } catch (err) {
+            console.warn("openLink failed", err);
+            await navigator.clipboard.writeText(url);
+            btn.textContent = "Couldn't open — link copied instead";
+            setTimeout(() => (btn.textContent = original), 2000);
+          }
+        });
+
+      document
+        .getElementById("receiptLink")
+        .addEventListener("click", async () => {
+          const btn = document.getElementById("receiptLink");
+          const url = btn.dataset.receiptUrl;
+          if (!url) return;
+
+          if (!app.getHostCapabilities()?.openLinks) {
+            await navigator.clipboard.writeText(url);
+            btn.textContent = "Host can't open links — link copied instead";
+            return;
+          }
+
+          const original = btn.textContent;
+          try {
+            const { isError } = await app.openLink({ url });
+            if (isError) {
+              await navigator.clipboard.writeText(url);
+              btn.textContent = "Couldn't open — link copied instead";
+              setTimeout(() => (btn.textContent = original), 2000);
+            }
+          } catch (err) {
+            console.warn("openLink failed", err);
+            await navigator.clipboard.writeText(url);
+            btn.textContent = "Couldn't open — link copied instead";
+            setTimeout(() => (btn.textContent = original), 2000);
+          }
+        });
+
+      document
+        .getElementById("copyLinkBtn")
+        .addEventListener("click", async () => {
+          const url = window.__reserveState?.transactionRequestUrl;
+          if (!url) return;
+          await navigator.clipboard.writeText(url);
+          const btn = document.getElementById("copyLinkBtn");
+          const original = btn.textContent;
+          btn.textContent = "Copied!";
+          setTimeout(() => (btn.textContent = original), 1200);
+        });
+
+      await app.connect();
+    </script>
+  </body>
+</html>

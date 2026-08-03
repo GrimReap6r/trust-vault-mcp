@@ -42,7 +42,10 @@ export type PendingIntent =
       kind: "reserve_sell_order";
       trustExpress: string;
       maker: string;
-      buyer: string;
+      // NOTE: no `buyer` field. The wallet identifies itself at scan time
+      // via POST /pay/:reference's req.body.account -- see
+      // tools/reserveSellOrder.ts's doc comment. Storing a buyer here would
+      // just be dead data, same as the old buyerWallet chat argument was.
       amountRaw: string;
       payoutReference: string;
     };
